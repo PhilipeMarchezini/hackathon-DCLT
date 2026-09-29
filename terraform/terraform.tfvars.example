@@ -1,0 +1,14 @@
+aws_region          = "us-east-1"
+dr_region           = "us-west-2"
+lab_role_name       = "LabRole"
+gitops_repository   = "https://github.com/PhilipeMarchezini/hackathon-DCLT.git"
+# Em um restore DR, informe os snapshots copiados para a regiao de recuperacao:
+# database_snapshot_identifiers = { ngo = "arn:aws:rds:...:snapshot:ngo", donation = "arn:aws:rds:...:snapshot:donation" }
+# Para PITR a partir dos backups automatizados replicados, prefira:
+# database_automated_backup_arns = { ngo = "arn:aws:rds:us-west-2:...:auto-backup:ab-...", donation = "arn:aws:rds:us-west-2:...:auto-backup:ab-..." }
+# Em um state separado de failover, tambem use:
+# manage_dynamodb_table          = false
+# create_dr_protection_resources = false
+# manage_ecr_repositories       = false
+# existing_velero_bucket_name    = "solidarytech-production-velero-123456789012"
+# Não grave a senha aqui. Use: TF_VAR_database_password='senha-forte'

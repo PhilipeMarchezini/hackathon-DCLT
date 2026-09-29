@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: donation-service }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: donation-service } }
+  template:
+    metadata: { labels: { app: donation-service, service: donation-service } }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: donation-service
+          image: 000000000000.dkr.ecr.us-east-1.amazonaws.com/solidarytech/donation-service:bootstrap
+          ports:
+            - { name: http, containerPort: 8082 }
+          envFrom: [{ configMapRef: { name: solidarytech-config } }]
+          env:
+            - { name: DATABASE_URL, valueFrom: { secretKeyRef: { name: solidarytech-secrets, key: DONATION_DATABASE_URL } } }
+            - { name: REDIS_ADDR, valueFrom: { secretKeyRef: { name: solidarytech-secrets, key: REDIS_ADDR } } }
+            - { name: AWS_SQS_URL, valueFrom: { secretKeyRef: { name: solidarytech-secrets, key: AWS_SQS_URL } } }
+          readinessProbe: { httpGet: { path: /health/ready, port: http }, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /health/live, port: http }, initialDelaySeconds: 10, periodSeconds: 15 }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 384Mi }
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] }, readOnlyRootFilesystem: true }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: donation-service, labels: { app: donation-service } }
+spec: { selector: { app: donation-service }, ports: [{ name: http, port: 80, targetPort: http }] }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: { name: donation-service }
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: donation-service }
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource: { name: cpu, target: { type: Utilization, averageUtilization: 70 } }
+  behavior:
+    scaleUp: { stabilizationWindowSeconds: 0, policies: [{ type: Percent, value: 100, periodSeconds: 30 }] }
+    scaleDown: { stabilizationWindowSeconds: 300, policies: [{ type: Percent, value: 50, periodSeconds: 60 }] }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: { name: donation-service }
+spec: { minAvailable: 1, selector: { matchLabels: { app: donation-service } } }

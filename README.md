@@ -1,362 +1,111 @@
-# 🚀 SolidaryTech — Hackathon Fase 5
+# SolidaryTech — Hackathon DCLT
 
-Bem-vindo ao repositório oficial da **SolidaryTech**.
+Plataforma de impacto social da ONG SolidaryTech, consolidando as entregas das fases 1 a 4 e a solução de DevOps/SRE da fase 5. O projeto está pronto para desenvolvimento local e para provisionamento no AWS Academy com Terraform, EKS, Argo CD, observabilidade e continuidade de negócio.
 
-Este monorepo contém os microsserviços que compõem a plataforma da ONG e servirá como base para os desafios do Hackathon Fase 5.
+> Não há integração com Datadog. A observabilidade usa Prometheus, Grafana, Loki, OpenTelemetry e, opcionalmente, uma conta gratuita do New Relic via OTLP.
 
-O objetivo principal deste projeto é aplicar conceitos modernos de:
+## Arquitetura entregue
 
-- SRE (Site Reliability Engineering)
-- FinOps
-- Multicloud
-- ITSM
-- Observabilidade
-- Resiliência
-- Kubernetes & GitOps
-- Infraestrutura como Código (IaC)
+- `ngo-service` (Python/Flask + PostgreSQL): cadastro e consulta de ONGs.
+- `donation-service` (Go + PostgreSQL + Redis + SQS): doações, cache e publicação confiável pelo padrão transactional outbox.
+- `volunteer-service` (Python/Flask + DynamoDB): cadastro e busca de voluntários por ONG.
+- Execução local reproduzível com Docker Compose, PostgreSQL, Redis, DynamoDB Local e LocalStack.
+- AWS: VPC, EKS, ECR, RDS, ElastiCache, DynamoDB, SQS/DLQ, backup cross-region e S3 para Velero.
+- GitOps com Argo CD, probes, HPA, PDB, NetworkPolicies e migrações idempotentes.
+- CI/CD no GitHub Actions com testes, auditoria de dependências, scan de imagens e atualização declarativa do GitOps.
+- SRE: métricas, logs e traces, SLO/error budget, alertas e integrações opcionais PagerDuty Free, Discord e GitHub Issues.
 
----
+Detalhes: [arquitetura](docs/ARQUITETURA.md), [SRE](docs/SRE.md), [PCN/DR](docs/PCN-DR.md), [FinOps](docs/FINOPS.md), [ITSM/AIOps](docs/ITSM-AIOPS.md), [runbook New Relic AIOps](docs/NEW-RELIC-AIOPS.md) e [rastreabilidade](docs/RASTREABILIDADE.md).
 
-# 🏗️ Arquitetura dos Microsserviços
+## Rodar localmente
 
-O ecossistema é composto por **3 microsserviços independentes**, desenvolvidos com tecnologias diferentes para simular um ambiente corporativo distribuído.
+Pré-requisito: Docker Desktop com Compose v2.
 
----
+```powershell
+Copy-Item .env.example .env
+docker compose up --build -d
+docker compose ps
+```
 
-## 1️⃣ NGO Service — Cadastro de ONGs
+Smoke test:
 
-| Item | Valor |
-|---|---|
-| Linguagem | Python 3.9+ |
-| Framework | Flask |
-| Banco de Dados | PostgreSQL |
-| Porta Local | `8081` |
+```powershell
+Invoke-RestMethod http://localhost:8081/health/ready
+Invoke-RestMethod http://localhost:8082/health/ready
+Invoke-RestMethod http://localhost:8083/health/ready
 
-### 📌 Descrição
-Responsável pelo gerenciamento e cadastro das ONGs parceiras da plataforma.
+Invoke-RestMethod -Method Post http://localhost:8081/ngos -ContentType application/json -Body '{"name":"ONG Verde","email":"verde@example.org","cause":"Meio ambiente","city":"Sao Paulo"}'
+Invoke-RestMethod -Method Post http://localhost:8082/donations -ContentType application/json -Body '{"ngo_id":1,"amount":50.00,"donor_name":"Doador Teste"}'
+Invoke-RestMethod -Method Post http://localhost:8083/volunteers -ContentType application/json -Body '{"name":"Voluntario Teste","email":"voluntario@example.org","ngo_id":1}'
+```
 
----
+Remoção do ambiente local e dos volumes locais:
 
-## 2️⃣ Donation Service — Processamento de Doações
+```powershell
+docker compose down --volumes
+```
 
-| Item | Valor |
-|---|---|
-| Linguagem | Go 1.21+ |
-| Banco de Dados | PostgreSQL |
-| Mensageria | AWS SQS |
-| Porta Local | `8082` |
+## Provisionar no AWS Academy
 
-### 📌 Descrição
-Este é o **Hot Path** da aplicação.
+As credenciais do Academy são temporárias. Atualize `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` e `AWS_DEFAULT_REGION=us-east-1` na sessão. O código reutiliza a role preexistente `LabRole` e não cria IAM Roles.
 
-Responsável pelo processamento das doações e publicação de eventos assíncronos em filas para processamento posterior.
+Antes do primeiro `apply`, publique este repositório no GitHub no endereço definido por `gitops_repository` (o padrão é `https://github.com/PhilipeMarchezini/hackathon-DCLT.git`) ou altere essa variável para o seu fork. O Argo CD precisa conseguir ler o repositório; a criação/publicação do fork é uma pré-condição externa e não é feita pelo Terraform.
 
----
+```powershell
+Copy-Item terraform/backend.hcl.example terraform/backend.hcl
+Copy-Item terraform/terraform.tfvars.example terraform/terraform.tfvars
+$env:TF_VAR_database_password = '<senha-forte>'
 
-## 3️⃣ Volunteer Service — Gestão de Voluntários
+terraform -chdir=terraform/bootstrap init
+terraform -chdir=terraform/bootstrap apply
+# Preencha bucket/key/region em backend.hcl com o output do bootstrap.
+terraform -chdir=terraform init -backend-config=backend.hcl
+terraform -chdir=terraform plan -out=tfplan
+terraform -chdir=terraform apply tfplan
 
-| Item | Valor |
-|---|---|
-| Linguagem | Python 3.9+ |
-| Framework | Flask |
-| Banco de Dados | AWS DynamoDB |
-| Porta Local | `8083` |
+aws eks update-kubeconfig --region us-east-1 --name solidarytech-production-eks
+.\scripts\render-gitops.ps1
+.\scripts\bootstrap-secrets.ps1 -DatabasePassword $env:TF_VAR_database_password -NewRelicLicenseKey '<opcional>'
+```
 
-### 📌 Descrição
-Gerencia o cadastro e inscrição de voluntários interessados em apoiar as ONGs parceiras.
+O script também renderiza todos os `repoURL`, o endpoint `repository_dispatch` e as URLs ECR para a região informada pelo Terraform. Em um failover, configure a variável de repositório `AWS_REGION` do GitHub para a região DR e execute `render-gitops.ps1` antes de sincronizar o Argo CD.
 
-Utiliza armazenamento NoSQL nativo da AWS com foco em escalabilidade.
+Revise e faça commit das substituições geradas por `render-gitops.ps1`. Depois construa as imagens iniciais executando manualmente os três workflows de serviço; a partir daí, o Argo CD acompanha o branch `main`.
 
----
+Segredos do GitHub necessários para publicação no ECR: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` e `AWS_SESSION_TOKEN`. Como o token do Academy expira, eles devem ser atualizados a cada sessão.
 
-# 📁 Estrutura do Repositório
+Argo CD e Grafana não são expostos à internet. Acesso administrativo temporário:
+
+```powershell
+kubectl port-forward -n argocd svc/argocd-server 8443:443
+kubectl port-forward -n observability svc/kube-prometheus-stack-grafana 3000:80
+```
+
+## API
+
+| Serviço | Porta | Operações |
+|---|---:|---|
+| NGO | 8081 | `POST /ngos`, `GET /ngos`, `/health/live`, `/health/ready`, `/metrics` |
+| Donation | 8082 | `POST /donations`, `GET /donations`, `/health/live`, `/health/ready`, `/metrics` |
+| Volunteer | 8083 | `POST /volunteers`, `GET /volunteers/{ngo_id}`, `/health/live`, `/health/ready`, `/metrics` |
+
+## Estrutura
 
 ```text
 .
-├── ngo-service/          # Código Python e scripts SQL do serviço de ONGs
-├── donation-service/     # Código Go e scripts SQL do serviço de doações
-└── volunteer-service/    # Código Python do serviço de voluntários
+├── .github/workflows/       CI/CD, validação e self-healing
+├── donation-service/        Serviço Go, outbox e testes
+├── ngo-service/             Serviço Flask e testes
+├── volunteer-service/       Serviço Flask/DynamoDB e testes
+├── terraform/               IaC modular e bootstrap do state
+├── gitops/                  Argo CD, workloads, plataforma e observabilidade
+├── scripts/                 Inicialização local e bootstrap seguro
+├── docs/                    Runbooks, evidências e relatório
+└── docker-compose.yml       Ambiente local completo
 ```
 
----
+## Entrega acadêmica
 
-# 🚀 Executando Localmente
+O relatório final está em [RELATORIO_FASE5.md](RELATORIO_FASE5.md) e [RELATORIO_FASE5.pdf](RELATORIO_FASE5.pdf), com roteiro em [ROTEIRO-VIDEO.md](docs/ROTEIRO-VIDEO.md). O PDF pode ser recriado com `python scripts/gerar-relatorio.py`. Evidências reais do deploy devem ser capturadas após a execução no laboratório e inseridas em `docs/evidencias/`; o repositório não apresenta screenshots simulados como execução real.
 
-Antes de realizar deploy em Kubernetes e automatizações CI/CD, recomenda-se validar todo o ambiente localmente.
-
----
-
-# ✅ Pré-requisitos
-
-Certifique-se de possuir os seguintes itens instalados:
-
-- Python 3.9+
-- Go 1.21+
-- Docker (opcional, mas recomendado)
-- PostgreSQL
-- AWS CLI configurado
-- Credenciais AWS válidas
-
----
-
-# 🛠️ Passo 1 — Preparação da Infraestrutura
-
-## PostgreSQL
-
-Crie dois bancos de dados independentes:
-
-### Banco `ngo_db`
-
-Execute:
-
-```sql
-ngo-service/db/init.sql
-```
-
-### Banco `donation_db`
-
-Execute:
-
-```sql
-donation-service/db/init.sql
-```
-
----
-
-## AWS DynamoDB
-
-Crie a tabela:
-
-| Configuração | Valor |
-|---|---|
-| Nome da Tabela | `SolidaryTechVolunteers` |
-| Partition Key | `volunteer_id` |
-| Tipo | `String` |
-
----
-
-## AWS SQS
-
-Crie uma fila do tipo **Standard Queue**.
-
-Exemplo:
-
-```text
-https://sqs.us-east-1.amazonaws.com/1234567890/solidary-donations
-```
-
-Guarde a URL da fila para utilizar nas variáveis de ambiente.
-
----
-
-# ⚙️ Passo 2 — Variáveis de Ambiente
-
-Crie um arquivo `.env` dentro de cada microsserviço.
-
----
-
-## 📄 ngo-service/.env
-
-```env
-PORT=8081
-DATABASE_URL="postgres://SEU_USUARIO:SUA_SENHA@localhost:5432/ngo_db"
-```
-
----
-
-## 📄 donation-service/.env
-
-```env
-PORT=8082
-DATABASE_URL="postgres://SEU_USUARIO:SUA_SENHA@localhost:5432/donation_db"
-
-AWS_REGION="us-east-1"
-AWS_SQS_URL="SUA_URL_DA_FILA_SQS"
-```
-
----
-
-## 📄 volunteer-service/.env
-
-```env
-PORT=8083
-
-AWS_REGION="us-east-1"
-AWS_DYNAMODB_TABLE="SolidaryTechVolunteers"
-```
-
----
-
-# ▶️ Passo 3 — Inicializando os Serviços
-
-Abra **3 terminais separados**.
-
----
-
-## 🟣 Terminal 1 — NGO Service
-
-```bash
-cd ngo-service
-
-pip install -r requirements.txt
-
-gunicorn --bind 0.0.0.0:8081 app:app
-```
-
----
-
-## 🟠 Terminal 2 — Donation Service
-
-```bash
-cd donation-service
-
-go mod tidy
-
-go run .
-```
-
----
-
-## 🔵 Terminal 3 — Volunteer Service
-
-```bash
-cd volunteer-service
-
-pip install -r requirements.txt
-
-gunicorn --bind 0.0.0.0:8083 app:app
-```
-
----
-
-# 🌐 Portas Locais
-
-| Serviço | URL |
-|---|---|
-| NGO Service | http://localhost:8081 |
-| Donation Service | http://localhost:8082 |
-| Volunteer Service | http://localhost:8083 |
-
----
-
-# 🎯 Objetivos do Hackathon
-
-O código fornecido representa apenas a base do software.
-
-O verdadeiro desafio está na engenharia, operação e resiliência da plataforma.
-
----
-
-# 📦 Conteinerização
-
-- Criar Dockerfiles
-- Otimizar imagens
-- Implementar estratégias multi-stage build
-- Reduzir vulnerabilidades
-
----
-
-# ☁️ Infraestrutura como Código (Terraform)
-
-Provisionar:
-
-- Amazon EKS
-- Amazon RDS
-- Amazon ElastiCache
-- Amazon SQS
-- Amazon DynamoDB
-- VPC, Subnets e Security Groups
-
-## 💰 FinOps
-
-Implementar:
-
-- Tags estruturadas
-- Controle de custos
-- Rightsizing
-- Budgets e alertas financeiros
-
----
-
-# 🔄 CI/CD & GitOps
-
-Automatizar:
-
-- Testes
-- Security Scans
-- Build de imagens
-- Deploy em Kubernetes
-
-Ferramentas sugeridas:
-
-- GitHub Actions
-- ArgoCD
-- FluxCD
-
----
-
-# 📊 Observabilidade
-
-Instrumentar os serviços utilizando:
-
-- OpenTelemetry
-- Distributed Tracing
-- Métricas
-- Logs estruturados
-
-Ferramentas sugeridas:
-
-- Grafana
-- Prometheus
-- Datadog
-- New Relic
-
----
-
-# 🛡️ SRE & Resiliência
-
-Definir:
-
-- SLIs
-- SLOs
-- Error Budgets
-- Estratégias de Disaster Recovery
-- Alertas inteligentes
-- Health Checks
-- Auto Healing
-
-## 🔥 Foco Principal
-
-O `donation-service` deve ser tratado como componente crítico da plataforma.
-
----
-
-# 📚 Tecnologias Envolvidas
-
-- Python
-- Flask
-- Go
-- PostgreSQL
-- DynamoDB
-- AWS SQS
-- Docker
-- Kubernetes
-- Terraform
-- GitOps
-- OpenTelemetry
-
----
-
-# 🤝 Contribuição
-
-Este projeto foi criado exclusivamente para fins educacionais e execução do Hackathon Fase 5.
-
-Sinta-se livre para evoluir a arquitetura, melhorar a observabilidade e implementar boas práticas de engenharia de plataforma.
-
----
-
-# 🏁 Boa sorte!
-
-Bom Hackathon 🚀
-
-Faça a diferença com a **SolidaryTech** 💙
+Autor: Philipe de Oliveira Marchezini — RM 369453.

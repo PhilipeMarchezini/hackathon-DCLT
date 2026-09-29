@@ -1,0 +1,10 @@
+.git
+.github
+.terraform
+**/__pycache__
+**/.pytest_cache
+**/.env*
+**/*_test.go
+**/tests
+docs
+evidencias

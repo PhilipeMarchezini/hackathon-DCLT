@@ -1,0 +1,142 @@
+name: solidarytech
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  ngo-db:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: ngo_db
+      POSTGRES_USER: ${POSTGRES_USER:-solidary}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-solidary-local}
+    volumes:
+      - ngo-data:/var/lib/postgresql/data
+      - ./ngo-service/db/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *default-logging
+
+  donation-db:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: donation_db
+      POSTGRES_USER: ${POSTGRES_USER:-solidary}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-solidary-local}
+    volumes:
+      - donation-data:/var/lib/postgresql/data
+      - ./donation-service/db/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *default-logging
+
+  redis:
+    image: redis:7.4.1-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    volumes: ["redis-data:/data"]
+    networks: [data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *default-logging
+
+  dynamodb:
+    image: amazon/dynamodb-local:2.5.3
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/home/dynamodblocal/data"]
+    user: root
+    volumes: ["dynamodb-data:/home/dynamodblocal/data"]
+    networks: [data]
+    logging: *default-logging
+
+  dynamodb-init:
+    image: amazon/aws-cli:2.17.57
+    entrypoint: ["/bin/sh", "/init.sh"]
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    volumes: ["./scripts/dynamodb-init.sh:/init.sh:ro"]
+    networks: [data]
+    depends_on: [dynamodb]
+
+  localstack:
+    image: localstack/localstack:3.8.1
+    environment:
+      SERVICES: sqs
+      AWS_DEFAULT_REGION: us-east-1
+      SQS_ENDPOINT_STRATEGY: path
+    volumes: ["./scripts/localstack-init.sh:/etc/localstack/init/ready.d/10-sqs.sh:ro"]
+    networks: [data]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    logging: *default-logging
+
+  ngo-service:
+    build: ./ngo-service
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-solidary}:${POSTGRES_PASSWORD:-solidary-local}@ngo-db:5432/ngo_db
+      OTEL_SDK_DISABLED: "true"
+    ports: ["8081:8081"]
+    networks: [app, data]
+    depends_on:
+      ngo-db: { condition: service_healthy }
+    logging: *default-logging
+
+  donation-service:
+    build: ./donation-service
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-solidary}:${POSTGRES_PASSWORD:-solidary-local}@donation-db:5432/donation_db
+      REDIS_ADDR: redis:6379
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_SQS_URL: http://localstack:4566/000000000000/solidary-donations
+    ports: ["8082:8082"]
+    networks: [app, data]
+    depends_on:
+      donation-db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      localstack: { condition: service_healthy }
+    logging: *default-logging
+
+  volunteer-service:
+    build: ./volunteer-service
+    environment:
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_ENDPOINT_URL: http://dynamodb:8000
+      AWS_DYNAMODB_TABLE: SolidaryTechVolunteers
+      OTEL_SDK_DISABLED: "true"
+    ports: ["8083:8083"]
+    networks: [app, data]
+    depends_on:
+      dynamodb-init: { condition: service_completed_successfully }
+    logging: *default-logging
+
+networks:
+  app:
+  data:
+    internal: true
+
+volumes:
+  ngo-data:
+  donation-data:
+  redis-data:
+  dynamodb-data:

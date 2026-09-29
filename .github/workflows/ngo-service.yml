@@ -1,0 +1,12 @@
+name: NGO service
+on:
+  pull_request: { paths: ['ngo-service/**', '.github/workflows/reusable-service-ci.yml'] }
+  push: { branches: [main], paths: ['ngo-service/**'] }
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  ci:
+    uses: ./.github/workflows/reusable-service-ci.yml
+    with: { service_name: ngo-service, service_dir: ngo-service, language: python }
+    secrets: inherit

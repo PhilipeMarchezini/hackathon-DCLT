@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: solidarytech-sre-dashboard
+  labels: { grafana_dashboard: "1" }
+data:
+  solidarytech-sre.json: |
+    {
+      "title":"SolidaryTech - SRE e Error Budget","uid":"solidarytech-sre","schemaVersion":39,
+      "tags":["solidarytech","sre","fase5"],"refresh":"30s","time":{"from":"now-6h","to":"now"},
+      "panels":[
+        {"type":"stat","title":"Disponibilidade (30d)","gridPos":{"x":0,"y":0,"w":6,"h":5},"fieldConfig":{"defaults":{"unit":"percentunit","min":0,"max":1}},"targets":[{"refId":"A","expr":"solidarytech:donation_availability:ratio30d"}]},
+        {"type":"stat","title":"Error budget restante (30d)","gridPos":{"x":6,"y":0,"w":6,"h":5},"fieldConfig":{"defaults":{"unit":"percentunit"}},"targets":[{"refId":"A","expr":"solidarytech:donation_error_budget_remaining:ratio30d"}]},
+        {"type":"stat","title":"Latência <=500ms (30d)","gridPos":{"x":12,"y":0,"w":6,"h":5},"fieldConfig":{"defaults":{"unit":"percentunit","min":0,"max":1}},"targets":[{"refId":"A","expr":"solidarytech:donation_latency_le500:ratio30d"}]},
+        {"type":"stat","title":"Outbox pendente","gridPos":{"x":18,"y":0,"w":6,"h":5},"targets":[{"refId":"A","expr":"solidarytech_donation_outbox_pending"}]},
+        {"type":"timeseries","title":"Tráfego POST por status","gridPos":{"x":0,"y":5,"w":12,"h":8},"targets":[{"refId":"A","expr":"sum by (status) (rate(solidarytech_http_server_requests_total{method=\"POST\",route=\"/donations\"}[5m]))","legendFormat":"HTTP {{status}}"}]},
+        {"type":"timeseries","title":"Latência POST p50/p95/p99","gridPos":{"x":12,"y":5,"w":12,"h":8},"fieldConfig":{"defaults":{"unit":"s"}},"targets":[{"refId":"A","expr":"histogram_quantile(0.50, sum by (le) (rate(solidarytech_http_server_request_duration_seconds_bucket{method=\"POST\",route=\"/donations\"}[5m])))","legendFormat":"p50"},{"refId":"B","expr":"histogram_quantile(0.95, sum by (le) (rate(solidarytech_http_server_request_duration_seconds_bucket{method=\"POST\",route=\"/donations\"}[5m])))","legendFormat":"p95"},{"refId":"C","expr":"histogram_quantile(0.99, sum by (le) (rate(solidarytech_http_server_request_duration_seconds_bucket{method=\"POST\",route=\"/donations\"}[5m])))","legendFormat":"p99"}]},
+        {"type":"timeseries","title":"CPU por pod","gridPos":{"x":0,"y":13,"w":12,"h":8},"targets":[{"refId":"A","expr":"sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"solidarytech\",container!=\"\"}[5m]))","legendFormat":"{{pod}}"}]},
+        {"type":"logs","title":"Logs em tempo real","gridPos":{"x":12,"y":13,"w":12,"h":8},"datasource":{"type":"loki","uid":"loki"},"targets":[{"refId":"A","expr":"{service_name=~\".*-service\"}"}]}
+      ]
+    }

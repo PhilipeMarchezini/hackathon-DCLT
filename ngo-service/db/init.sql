@@ -9,4 +9,5 @@ CREATE TABLE IF NOT EXISTS ngos (
 
 INSERT INTO ngos (name, email, cause, city) VALUES 
 ('Anjos de Patas', 'contato@anjosdepatas.org', 'Proteção Animal', 'Osasco'),
-('Educa Mais', 'info@educamais.org', 'Educação', 'São Paulo');
+('Educa Mais', 'info@educamais.org', 'Educação', 'São Paulo')
+ON CONFLICT (email) DO NOTHING;

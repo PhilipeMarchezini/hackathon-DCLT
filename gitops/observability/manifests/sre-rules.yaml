@@ -1,0 +1,53 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata: { name: solidarytech-sre, labels: { release: kube-prometheus-stack } }
+spec:
+  groups:
+    - name: solidarytech.slo
+      interval: 30s
+      rules:
+        - record: solidarytech:donation_requests:rate5m
+          expr: sum(rate(solidarytech_http_server_requests_total{method="POST",route="/donations"}[5m]))
+        - record: solidarytech:donation_errors:ratio5m
+          expr: (sum(rate(solidarytech_http_server_requests_total{method="POST",route="/donations",status=~"5.."}[5m])) or vector(0)) / clamp_min(solidarytech:donation_requests:rate5m, 0.001)
+        - record: solidarytech:donation_errors:ratio30m
+          expr: (sum(rate(solidarytech_http_server_requests_total{method="POST",route="/donations",status=~"5.."}[30m])) or vector(0)) / clamp_min(sum(rate(solidarytech_http_server_requests_total{method="POST",route="/donations"}[30m])), 0.001)
+        - record: solidarytech:donation_errors:ratio1h
+          expr: (sum(rate(solidarytech_http_server_requests_total{method="POST",route="/donations",status=~"5.."}[1h])) or vector(0)) / clamp_min(sum(rate(solidarytech_http_server_requests_total{method="POST",route="/donations"}[1h])), 0.001)
+        - record: solidarytech:donation_errors:ratio6h
+          expr: (sum(rate(solidarytech_http_server_requests_total{method="POST",route="/donations",status=~"5.."}[6h])) or vector(0)) / clamp_min(sum(rate(solidarytech_http_server_requests_total{method="POST",route="/donations"}[6h])), 0.001)
+        - record: solidarytech:donation_availability:ratio30d
+          expr: 1 - ((sum(increase(solidarytech_http_server_requests_total{method="POST",route="/donations",status=~"5.."}[30d])) or vector(0)) / clamp_min(sum(increase(solidarytech_http_server_requests_total{method="POST",route="/donations"}[30d])), 1))
+        - record: solidarytech:donation_error_budget_remaining:ratio30d
+          expr: clamp_min(1 - ((1 - solidarytech:donation_availability:ratio30d) / 0.001), 0)
+        - record: solidarytech:donation_latency:p95_5m
+          expr: histogram_quantile(0.95, sum by (le) (rate(solidarytech_http_server_request_duration_seconds_bucket{method="POST",route="/donations"}[5m])))
+        - record: solidarytech:donation_latency_le500:ratio5m
+          expr: sum(rate(solidarytech_http_server_request_duration_seconds_bucket{method="POST",route="/donations",le="0.5"}[5m])) / clamp_min(sum(rate(solidarytech_http_server_request_duration_seconds_count{method="POST",route="/donations"}[5m])), 0.001)
+        - record: solidarytech:donation_latency_le500:ratio30d
+          expr: sum(increase(solidarytech_http_server_request_duration_seconds_bucket{method="POST",route="/donations",le="0.5"}[30d])) / clamp_min(sum(increase(solidarytech_http_server_request_duration_seconds_count{method="POST",route="/donations"}[30d])), 1)
+        - alert: DonationServiceHighLatency
+          expr: solidarytech:donation_latency_le500:ratio5m < 0.99
+          for: 5m
+          labels: { severity: warning, service: donation-service, slo: latency }
+          annotations: { summary: "Menos de 99% das doacoes concluem em ate 500 ms" }
+        - alert: DonationErrorBudgetFastBurn
+          expr: solidarytech:donation_errors:ratio5m > 0.0144 and solidarytech:donation_errors:ratio1h > 0.0144
+          for: 2m
+          labels: { severity: critical, service: donation-service, slo: availability }
+          annotations: { summary: "Error budget em queima rapida (14,4x)" }
+        - alert: DonationErrorBudgetSlowBurn
+          expr: solidarytech:donation_errors:ratio30m > 0.006 and solidarytech:donation_errors:ratio6h > 0.006
+          for: 15m
+          labels: { severity: warning, service: donation-service, slo: availability }
+          annotations: { summary: "Error budget em queima sustentada (6x)" }
+        - alert: DonationOutboxBacklog
+          expr: solidarytech_donation_outbox_pending > 100
+          for: 10m
+          labels: { severity: warning, service: donation-service }
+          annotations: { summary: "Outbox de doações acumulando eventos" }
+        - alert: DonationOutboxDeliveryFailed
+          expr: solidarytech_donation_outbox_failed > 0
+          for: 2m
+          labels: { severity: critical, service: donation-service }
+          annotations: { summary: "Evento do outbox esgotou dez tentativas de publicação" }

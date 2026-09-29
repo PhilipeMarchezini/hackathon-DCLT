@@ -1,0 +1,12 @@
+name: Donation service
+on:
+  pull_request: { paths: ['donation-service/**', '.github/workflows/reusable-service-ci.yml'] }
+  push: { branches: [main], paths: ['donation-service/**'] }
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  ci:
+    uses: ./.github/workflows/reusable-service-ci.yml
+    with: { service_name: donation-service, service_dir: donation-service, language: go }
+    secrets: inherit

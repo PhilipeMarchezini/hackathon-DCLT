@@ -1,0 +1,11 @@
+output "cluster_name" { value = module.eks.cluster_name }
+output "configure_kubectl" { value = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}" }
+output "rds_endpoints" { value = module.data.rds_endpoints }
+output "redis_endpoint" { value = module.data.redis_endpoint }
+output "dynamodb_table" { value = module.data.dynamodb_table }
+output "sqs_queue_url" { value = module.messaging.queue_url }
+output "ecr_repositories" { value = module.registries.repository_urls }
+output "velero_bucket" { value = local.velero_bucket_name }
+output "gitops_repository" { value = var.gitops_repository }
+output "aws_region" { value = var.aws_region }
+output "velero_bucket_region" { value = var.create_dr_protection_resources ? var.dr_region : var.aws_region }

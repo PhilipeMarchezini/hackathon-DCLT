@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: volunteer-service }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: volunteer-service } }
+  template:
+    metadata: { labels: { app: volunteer-service, service: volunteer-service } }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: volunteer-service
+          image: 000000000000.dkr.ecr.us-east-1.amazonaws.com/solidarytech/volunteer-service:bootstrap
+          ports: [{ name: http, containerPort: 8083 }]
+          envFrom: [{ configMapRef: { name: solidarytech-config } }]
+          readinessProbe: { httpGet: { path: /health/ready, port: http }, periodSeconds: 10 }
+          livenessProbe: { httpGet: { path: /health/live, port: http }, initialDelaySeconds: 15, periodSeconds: 20 }
+          resources:
+            requests: { cpu: 50m, memory: 96Mi }
+            limits: { cpu: 300m, memory: 256Mi }
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] }, readOnlyRootFilesystem: true }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: volunteer-service, labels: { app: volunteer-service } }
+spec: { selector: { app: volunteer-service }, ports: [{ name: http, port: 80, targetPort: http }] }

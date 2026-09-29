@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: database-migrations
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "-1"
+data:
+  ngo.sql: |
+    CREATE TABLE IF NOT EXISTS ngos (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(150) NOT NULL,
+      email VARCHAR(100) UNIQUE NOT NULL,
+      cause VARCHAR(100) NOT NULL,
+      city VARCHAR(100) NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    INSERT INTO ngos (name, email, cause, city) VALUES
+      ('Anjos de Patas', 'contato@anjosdepatas.org', 'Proteção Animal', 'Osasco'),
+      ('Educa Mais', 'info@educamais.org', 'Educação', 'São Paulo')
+    ON CONFLICT (email) DO NOTHING;
+  donation.sql: |
+    CREATE TABLE IF NOT EXISTS donations (
+      id SERIAL PRIMARY KEY,
+      ngo_id INT NOT NULL,
+      amount NUMERIC(10, 2) NOT NULL,
+      donor_name VARCHAR(100) NOT NULL,
+      status VARCHAR(20) NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS donation_outbox (
+      id BIGSERIAL PRIMARY KEY,
+      donation_id INT NOT NULL REFERENCES donations(id) ON DELETE CASCADE,
+      payload JSONB NOT NULL,
+      traceparent VARCHAR(128),
+      published BOOLEAN NOT NULL DEFAULT FALSE,
+      attempts INT NOT NULL DEFAULT 0,
+      published_at TIMESTAMP WITH TIME ZONE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_donation_outbox_pending
+      ON donation_outbox (created_at) WHERE published = FALSE;
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-ngo-database
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext: { runAsNonRoot: true, runAsUser: 70, runAsGroup: 70, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: migrate
+          image: postgres:16-alpine
+          command: [psql, --set, ON_ERROR_STOP=1, --file, /migrations/ngo.sql]
+          args: ["$(PGURI)"]
+          env:
+            - { name: PGCONNECT_TIMEOUT, value: "10" }
+            - name: PGURI
+              valueFrom: { secretKeyRef: { name: solidarytech-secrets, key: NGO_DATABASE_URL } }
+          volumeMounts: [{ name: migrations, mountPath: /migrations, readOnly: true }]
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits: { cpu: 100m, memory: 96Mi }
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+      volumes: [{ name: migrations, configMap: { name: database-migrations } }]
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-donation-database
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext: { runAsNonRoot: true, runAsUser: 70, runAsGroup: 70, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: migrate
+          image: postgres:16-alpine
+          command: [psql, --set, ON_ERROR_STOP=1, --file, /migrations/donation.sql]
+          args: ["$(PGURI)"]
+          env:
+            - { name: PGCONNECT_TIMEOUT, value: "10" }
+            - name: PGURI
+              valueFrom: { secretKeyRef: { name: solidarytech-secrets, key: DONATION_DATABASE_URL } }
+          volumeMounts: [{ name: migrations, mountPath: /migrations, readOnly: true }]
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits: { cpu: 100m, memory: 96Mi }
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+      volumes: [{ name: migrations, configMap: { name: database-migrations } }]

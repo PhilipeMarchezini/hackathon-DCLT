@@ -1,0 +1,220 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations: { argocd.argoproj.io/sync-wave: "0" }
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 77.11.1
+    helm:
+      values: |
+        fullnameOverride: kube-prometheus-stack
+        prometheus:
+          prometheusSpec:
+            retention: 30d
+            serviceMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            resources:
+              requests: { cpu: 200m, memory: 512Mi }
+              limits: { cpu: 1, memory: 2Gi }
+        alertmanager: { enabled: false }
+        grafana:
+          enabled: true
+          service: { type: ClusterIP }
+          envFromSecret: incident-integrations
+          resources:
+            requests: { cpu: 100m, memory: 192Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          sidecar:
+            dashboards: { enabled: true, label: grafana_dashboard, searchNamespace: ALL }
+            datasources: { enabled: true, defaultDatasourceEnabled: true, uid: prometheus }
+          additionalDataSources:
+            - { name: Loki, type: loki, uid: loki, access: proxy, url: http://loki-gateway.observability.svc.cluster.local }
+          alerting:
+            contactpoints.yaml:
+              apiVersion: 1
+              contactPoints:
+                - orgId: 1
+                  name: solidarytech-oncall
+                  receivers:
+                    - uid: pagerduty
+                      type: pagerduty
+                      settings:
+                        integrationKey: $PAGERDUTY_INTEGRATION_KEY
+                        severity: critical
+                        class: solidarytech
+                        component: donation-service
+                    - uid: discord
+                      type: discord
+                      settings:
+                        url: $DISCORD_WEBHOOK_URL
+                        title: '[SolidaryTech] {{ `{{ template "default.title" . }}` }}'
+                        message: '**Serviço:** donation-service · **Status:** {{ `{{ .Status }}` }} · Self-healing e on-call acionados.'
+                    - uid: github-self-healing
+                      type: webhook
+                      settings:
+                        url: https://api.github.com/repos/PhilipeMarchezini/hackathon-DCLT/dispatches
+                        httpMethod: POST
+                        authorization_scheme: Bearer
+                        authorization_credentials: $GITHUB_PAT
+                        payload:
+                          template: '{"event_type":"self-healing","client_payload":{"status":"{{ `{{ .Status }}` }}","service":"donation-service","namespace":"solidarytech","alertname":"{{ `{{ .CommonLabels.alertname }}` }}"}}'
+            policies.yaml:
+              apiVersion: 1
+              policies:
+                - { orgId: 1, receiver: solidarytech-oncall, group_by: [alertname], group_wait: 30s, group_interval: 5m, repeat_interval: 4h }
+            rules.yaml:
+              apiVersion: 1
+              groups:
+                - orgId: 1
+                  name: SolidaryTech SRE
+                  folder: SolidaryTech
+                  interval: 1m
+                  rules:
+                    - uid: donation-error-budget-burn
+                      title: donation-service consumindo error budget
+                      condition: C
+                      for: 2m
+                      labels: { severity: critical, service: donation-service, slo: availability }
+                      annotations: { summary: 'Taxa de 5xx acima de 1% por cinco minutos.' }
+                      data:
+                        - refId: A
+                          relativeTimeRange: { from: 300, to: 0 }
+                          datasourceUid: prometheus
+                          model:
+                            refId: A
+                            editorMode: code
+                            instant: false
+                            range: true
+                            expr: '100 * (sum(rate(solidarytech_http_server_requests_total{method="POST",route="/donations",status=~"5.."}[5m])) or vector(0)) / clamp_min(sum(rate(solidarytech_http_server_requests_total{method="POST",route="/donations"}[5m])), 0.001)'
+                        - refId: B
+                          datasourceUid: __expr__
+                          model: { refId: B, type: reduce, reducer: last, expression: A }
+                        - refId: C
+                          datasourceUid: __expr__
+                          model:
+                            refId: C
+                            type: threshold
+                            expression: B
+                            conditions: [{ evaluator: { type: gt, params: [1] } }]
+                    - uid: donation-latency-slo
+                      title: donation-service abaixo do SLO de latencia
+                      condition: C
+                      for: 5m
+                      labels: { severity: warning, service: donation-service, slo: latency }
+                      annotations: { summary: 'Menos de 99% das respostas em ate 500 ms.' }
+                      data:
+                        - refId: A
+                          relativeTimeRange: { from: 600, to: 0 }
+                          datasourceUid: prometheus
+                          model: { refId: A, editorMode: code, instant: true, expr: 'solidarytech:donation_latency_le500:ratio5m' }
+                        - refId: B
+                          datasourceUid: __expr__
+                          model: { refId: B, type: reduce, reducer: last, expression: A }
+                        - refId: C
+                          datasourceUid: __expr__
+                          model: { refId: C, type: threshold, expression: B, conditions: [{ evaluator: { type: lt, params: [0.99] } }] }
+                    - uid: donation-outbox-backlog
+                      title: backlog elevado no outbox de doacoes
+                      condition: C
+                      for: 10m
+                      labels: { severity: warning, service: donation-service }
+                      annotations: { summary: 'Mais de cem eventos aguardando publicacao.' }
+                      data:
+                        - refId: A
+                          relativeTimeRange: { from: 900, to: 0 }
+                          datasourceUid: prometheus
+                          model: { refId: A, editorMode: code, instant: true, expr: 'solidarytech_donation_outbox_pending' }
+                        - refId: B
+                          datasourceUid: __expr__
+                          model: { refId: B, type: reduce, reducer: last, expression: A }
+                        - refId: C
+                          datasourceUid: __expr__
+                          model: { refId: C, type: threshold, expression: B, conditions: [{ evaluator: { type: gt, params: [100] } }] }
+                    - uid: donation-outbox-failed
+                      title: evento esgotou tentativas no outbox
+                      condition: C
+                      for: 2m
+                      labels: { severity: critical, service: donation-service }
+                      annotations: { summary: 'Evento nao publicado apos dez tentativas.' }
+                      data:
+                        - refId: A
+                          relativeTimeRange: { from: 300, to: 0 }
+                          datasourceUid: prometheus
+                          model: { refId: A, editorMode: code, instant: true, expr: 'solidarytech_donation_outbox_failed' }
+                        - refId: B
+                          datasourceUid: __expr__
+                          model: { refId: B, type: reduce, reducer: last, expression: A }
+                        - refId: C
+                          datasourceUid: __expr__
+                          model: { refId: C, type: threshold, expression: B, conditions: [{ evaluator: { type: gt, params: [0] } }] }
+        kubeControllerManager: { enabled: false }
+        kubeScheduler: { enabled: false }
+        kubeEtcd: { enabled: false }
+  destination: { server: https://kubernetes.default.svc, namespace: observability }
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata: { name: loki, namespace: argocd }
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: loki
+    targetRevision: 6.40.0
+    helm:
+      values: |
+        deploymentMode: SingleBinary
+        loki:
+          auth_enabled: false
+          commonConfig: { replication_factor: 1 }
+          storage: { type: filesystem }
+          schemaConfig:
+            configs:
+              - { from: "2024-04-01", store: tsdb, object_store: filesystem, schema: v13, index: { prefix: index_, period: 24h } }
+          limits_config: { retention_period: 168h, allow_structured_metadata: true }
+        singleBinary:
+          replicas: 1
+          persistence: { enabled: false }
+          extraVolumes: [{ name: loki-storage, emptyDir: {} }]
+          extraVolumeMounts: [{ name: loki-storage, mountPath: /var/loki }]
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 1Gi }
+        backend: { replicas: 0 }
+        read: { replicas: 0 }
+        write: { replicas: 0 }
+        chunksCache: { enabled: false }
+        resultsCache: { enabled: false }
+        lokiCanary: { enabled: false }
+        test: { enabled: false }
+  destination: { server: https://kubernetes.default.svc, namespace: observability }
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: observability-manifests
+  namespace: argocd
+  annotations: { argocd.argoproj.io/sync-wave: "1" }
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/PhilipeMarchezini/hackathon-DCLT.git
+    targetRevision: main
+    path: gitops/observability/manifests
+    directory:
+      exclude: '{secrets-template.yaml}'
+  destination: { server: https://kubernetes.default.svc, namespace: observability }
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }
+    syncOptions: [CreateNamespace=true]

@@ -1,0 +1,65 @@
+name: SRE self-healing audit
+on:
+  schedule: [{ cron: '*/15 * * * *' }]
+  workflow_dispatch:
+  repository_dispatch: { types: [self-healing] }
+permissions:
+  contents: read
+  issues: write
+concurrency: { group: sre-self-healing, cancel-in-progress: true }
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+      - name: Configure cluster
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+        run: aws eks update-kubeconfig --name solidarytech-production-eks --region "$AWS_REGION"
+      - id: audit
+        name: Detect unhealthy workloads and request Argo CD reconciliation
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_SERVICE: ${{ github.event.client_payload.service || 'donation-service' }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "repository_dispatch" ]; then
+            case "$REQUESTED_SERVICE" in
+              ngo-service|donation-service|volunteer-service) ;;
+              *) echo "Serviço inválido: $REQUESTED_SERVICE" >&2; exit 1 ;;
+            esac
+            kubectl annotate application solidarytech-apps -n argocd argocd.argoproj.io/refresh=hard --overwrite
+            kubectl rollout restart "deployment/$REQUESTED_SERVICE" -n solidarytech
+            RECOVERY=$(kubectl rollout status "deployment/$REQUESTED_SERVICE" -n solidarytech --timeout=5m 2>&1 || true)
+            echo "unhealthy=true" >> "$GITHUB_OUTPUT"
+            { echo 'details<<EOF'; echo "Alerta SLO recebido. Restart controlado: $REQUESTED_SERVICE"; echo "$RECOVERY"; echo EOF; } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          UNHEALTHY=$(kubectl get pods -n solidarytech --no-headers | awk '{split($2, ready, "/"); if (($3 != "Running" && $3 != "Completed") || ($3 == "Running" && ready[1] != ready[2])) print}')
+          if [ -n "$UNHEALTHY" ]; then
+            kubectl annotate application solidarytech-apps -n argocd argocd.argoproj.io/refresh=hard --overwrite
+            echo "unhealthy=true" >> "$GITHUB_OUTPUT"
+            { echo 'details<<EOF'; echo "$UNHEALTHY"; echo EOF; } >> "$GITHUB_OUTPUT"
+          else
+            echo "unhealthy=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Open incident issue after recovery trigger
+        if: steps.audit.outputs.unhealthy == 'true'
+        uses: actions/github-script@v7
+        env:
+          DETAILS: ${{ steps.audit.outputs.details }}
+        with:
+          script: |
+            const details = process.env.DETAILS;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[AIOps] Workload não saudável ${new Date().toISOString()}`,
+              body: `O Argo CD recebeu uma reconciliação forçada.\n\n\`\`\`\n${details}\n\`\`\``
+            });

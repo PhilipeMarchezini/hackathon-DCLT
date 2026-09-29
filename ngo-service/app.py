@@ -1,74 +1,115 @@
-import os
-import sys
-import psycopg2
-from psycopg2.extras import RealDictCursor
-from psycopg2.pool import SimpleConnectionPool
-from flask import Flask, request, jsonify
-from dotenv import load_dotenv
+import json
 import logging
+import os
+from datetime import datetime, timezone
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-log = logging.getLogger(__name__)
+import psycopg2
+from flask import Flask, jsonify, request
+from psycopg2.extras import RealDictCursor
+from psycopg2.pool import ThreadedConnectionPool
+from prometheus_flask_exporter import PrometheusMetrics
+from opentelemetry import trace
 
-load_dotenv()
 
-app = Flask(__name__)
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        span_context = trace.get_current_span().get_span_context()
+        payload = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname,
+            "service": "ngo-service",
+            "message": record.getMessage(),
+            "trace_id": format(span_context.trace_id, "032x") if span_context.is_valid else None,
+        }
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
+        return json.dumps(payload)
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
-    log.critical("Erro: DATABASE_URL não definida.")
-    sys.exit(1)
 
-try:
-    pool = SimpleConnectionPool(1, 10, dsn=DATABASE_URL)
-    log.info("Pool de conexões com o PostgreSQL (ngo-service) inicializado.")
-except Exception as e:
-    log.critical(f"Erro ao conectar ao PostgreSQL: {e}")
-    sys.exit(1)
+handler = logging.StreamHandler()
+handler.setFormatter(JsonFormatter())
+log = logging.getLogger("ngo-service")
+log.handlers = [handler]
+log.setLevel(os.getenv("LOG_LEVEL", "INFO"))
+log.propagate = False
 
-@app.route('/health')
-def health():
-    return jsonify({"status": "ok", "service": "ngo-service"})
 
-@app.route('/ngos', methods=['POST'])
-def create_ngo():
-    data = request.get_json()
-    if not data or not all(k in data for k in ('name', 'email', 'cause', 'city')):
-        return jsonify({"error": "Campos obrigatórios ausentes"}), 400
-    
-    conn = pool.getconn()
-    try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                "INSERT INTO ngos (name, email, cause, city) VALUES (%s, %s, %s, %s) RETURNING *",
-                (data['name'], data['email'], data['cause'], data['city'])
-            )
-            new_ngo = cur.fetchone()
-            conn.commit()
-            return jsonify(new_ngo), 201
-    except psycopg2.IntegrityError:
-        conn.rollback()
-        return jsonify({"error": "E-mail já cadastrado"}), 409
-    except Exception as e:
-        conn.rollback()
-        log.error(f"Erro ao criar ONG: {e}")
-        return jsonify({"error": "Erro interno"}), 500
-    finally:
-        pool.putconn(conn)
+def create_app(pool=None):
+    app = Flask(__name__)
+    PrometheusMetrics(app, group_by="endpoint", defaults_prefix="solidarytech")
+    app.config["DB_POOL"] = pool
 
-@app.route('/ngos', methods=['GET'])
-def get_ngos():
-    conn = pool.getconn()
-    try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT * FROM ngos ORDER BY id DESC")
-            return jsonify(cur.fetchall()), 200
-    except Exception as e:
-        log.error(f"Erro ao buscar ONGs: {e}")
-        return jsonify({"error": "Erro interno"}), 500
-    finally:
-        pool.putconn(conn)
+    def db_pool():
+        if app.config["DB_POOL"] is None:
+            database_url = os.getenv("DATABASE_URL")
+            if not database_url:
+                raise RuntimeError("DATABASE_URL não definida")
+            app.config["DB_POOL"] = ThreadedConnectionPool(1, 10, dsn=database_url)
+        return app.config["DB_POOL"]
 
-if __name__ == '__main__':
-    port = int(os.getenv("PORT", 8081))
-    app.run(host='0.0.0.0', port=port)
+    @app.get("/health")
+    @app.get("/health/live")
+    def live():
+        return jsonify({"status": "ok", "service": "ngo-service"})
+
+    @app.get("/health/ready")
+    def ready():
+        try:
+            connection = db_pool().getconn()
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT 1")
+            finally:
+                db_pool().putconn(connection)
+            return jsonify({"status": "ready", "service": "ngo-service"})
+        except Exception as error:
+            log.warning("readiness_failed: %s", error)
+            return jsonify({"status": "not_ready", "service": "ngo-service"}), 503
+
+    @app.post("/ngos")
+    def create_ngo():
+        data = request.get_json(silent=True) or {}
+        if not isinstance(data, dict) or not all(
+            data.get(field) for field in ("name", "email", "cause", "city")
+        ):
+            return jsonify({"error": "Campos obrigatórios ausentes"}), 400
+        connection = db_pool().getconn()
+        try:
+            with connection.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute(
+                    "INSERT INTO ngos (name, email, cause, city) VALUES (%s, %s, %s, %s) RETURNING *",
+                    (data["name"], data["email"], data["cause"], data["city"]),
+                )
+                ngo = cursor.fetchone()
+                connection.commit()
+                return jsonify(ngo), 201
+        except psycopg2.IntegrityError:
+            connection.rollback()
+            return jsonify({"error": "E-mail já cadastrado"}), 409
+        except Exception as error:
+            connection.rollback()
+            log.exception("create_ngo_failed: %s", error)
+            return jsonify({"error": "Erro interno"}), 500
+        finally:
+            db_pool().putconn(connection)
+
+    @app.get("/ngos")
+    def list_ngos():
+        connection = db_pool().getconn()
+        try:
+            with connection.cursor(cursor_factory=RealDictCursor) as cursor:
+                cursor.execute("SELECT * FROM ngos ORDER BY id DESC")
+                return jsonify(cursor.fetchall())
+        except Exception as error:
+            log.exception("list_ngos_failed: %s", error)
+            return jsonify({"error": "Erro interno"}), 500
+        finally:
+            db_pool().putconn(connection)
+
+    return app
+
+
+app = create_app()
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "8081")))  # nosec B104

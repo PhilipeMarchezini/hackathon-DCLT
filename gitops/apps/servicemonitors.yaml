@@ -1,0 +1,8 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata: { name: solidarytech-services, labels: { release: kube-prometheus-stack } }
+spec:
+  namespaceSelector: { matchNames: [solidarytech] }
+  selector:
+    matchExpressions: [{ key: app, operator: In, values: [ngo-service, donation-service, volunteer-service] }]
+  endpoints: [{ port: http, path: /metrics, interval: 30s }]
