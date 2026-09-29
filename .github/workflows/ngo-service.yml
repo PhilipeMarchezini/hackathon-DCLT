@@ -1,7 +1,7 @@
 name: NGO service
 on:
   pull_request: { paths: ['ngo-service/**', '.github/workflows/reusable-service-ci.yml'] }
-  push: { branches: [main], paths: ['ngo-service/**'] }
+  push: { branches: [main], paths: ['ngo-service/**', '.github/workflows/reusable-service-ci.yml'] }
   workflow_dispatch:
 permissions:
   contents: write

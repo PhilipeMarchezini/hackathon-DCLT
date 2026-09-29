@@ -1,7 +1,7 @@
 name: Donation service
 on:
   pull_request: { paths: ['donation-service/**', '.github/workflows/reusable-service-ci.yml'] }
-  push: { branches: [main], paths: ['donation-service/**'] }
+  push: { branches: [main], paths: ['donation-service/**', '.github/workflows/reusable-service-ci.yml'] }
   workflow_dispatch:
 permissions:
   contents: write
