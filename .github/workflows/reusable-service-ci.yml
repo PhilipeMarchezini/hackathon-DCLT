@@ -49,7 +49,7 @@ jobs:
       - name: Build image
         run: docker build --tag local/${{ inputs.service_name }}:${{ github.sha }} ./${{ inputs.service_dir }}
       - name: Scan image
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: local/${{ inputs.service_name }}:${{ github.sha }}
           format: table
