@@ -15,7 +15,7 @@ Plataforma de impacto social da ONG SolidaryTech, consolidando as entregas das f
 - CI/CD no GitHub Actions com testes, auditoria de dependências, scan de imagens e atualização declarativa do GitOps.
 - SRE: métricas, logs e traces, SLO/error budget, alertas e integrações opcionais PagerDuty Free, Discord e GitHub Issues.
 
-Detalhes: [arquitetura](docs/ARQUITETURA.md), [SRE](docs/SRE.md), [PCN/DR](docs/PCN-DR.md), [FinOps](docs/FINOPS.md), [ITSM/AIOps](docs/ITSM-AIOPS.md), [runbook New Relic AIOps](docs/NEW-RELIC-AIOPS.md) e [rastreabilidade](docs/RASTREABILIDADE.md).
+Detalhes: [guia de execução e validação](docs/GUIA-EXECUCAO-VALIDACAO.md), [arquitetura](docs/ARQUITETURA.md), [SRE](docs/SRE.md), [PCN/DR](docs/PCN-DR.md), [FinOps](docs/FINOPS.md), [ITSM/AIOps](docs/ITSM-AIOPS.md), [runbook New Relic AIOps](docs/NEW-RELIC-AIOPS.md) e [rastreabilidade](docs/RASTREABILIDADE.md).
 
 ## Rodar localmente
 
