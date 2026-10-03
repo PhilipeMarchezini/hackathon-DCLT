@@ -10,7 +10,7 @@
 | Fase 5 — FinOps | tags, sizing, lifecycle, forecast e teardown | `docs/FINOPS.md`, Terraform |
 | Fase 5 — resiliência/PCN | outbox, DLQ, backup cross-region, Velero e DR | Donation, `terraform/modules/backup`, `docs/PCN-DR.md` |
 | Fase 5 — ITSM/AIOps | classificação, integrações, correlação AIOps e ciclo de incidente | `docs/ITSM-AIOPS.md`, `docs/NEW-RELIC-AIOPS.md`, Grafana contact points |
-| Entrega | documentação, roteiro e área de evidências | `RELATORIO_FASE5.md`, `docs/ROTEIRO-VIDEO.md`, `docs/evidencias/` |
+| Entrega | documentação e área de evidências | `RELATORIO_FASE5.md`, `docs/evidencias/` |
 
 ## Critérios de aceite técnico
 

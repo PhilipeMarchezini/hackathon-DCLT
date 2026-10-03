@@ -15,7 +15,7 @@ Plataforma de impacto social da ONG SolidaryTech, consolidando as entregas das f
 - CI/CD no GitHub Actions com testes, auditoria de dependências, scan de imagens e atualização declarativa do GitOps.
 - SRE: métricas, logs e traces, SLO/error budget, alertas e integrações opcionais PagerDuty Free, Discord e GitHub Issues.
 
-Detalhes: [guia de execução e validação](docs/GUIA-EXECUCAO-VALIDACAO.md), [arquitetura](docs/ARQUITETURA.md), [SRE](docs/SRE.md), [PCN/DR](docs/PCN-DR.md), [FinOps](docs/FINOPS.md), [ITSM/AIOps](docs/ITSM-AIOPS.md), [runbook New Relic AIOps](docs/NEW-RELIC-AIOPS.md) e [rastreabilidade](docs/RASTREABILIDADE.md).
+Detalhes: [arquitetura](docs/ARQUITETURA.md), [SRE](docs/SRE.md), [PCN/DR](docs/PCN-DR.md), [FinOps](docs/FINOPS.md), [ITSM/AIOps](docs/ITSM-AIOPS.md), [runbook New Relic AIOps](docs/NEW-RELIC-AIOPS.md) e [rastreabilidade](docs/RASTREABILIDADE.md).
 
 ## Rodar localmente
 
@@ -106,6 +106,6 @@ kubectl port-forward -n observability svc/kube-prometheus-stack-grafana 3000:80
 
 ## Entrega acadêmica
 
-O relatório final está em [RELATORIO_FASE5.md](RELATORIO_FASE5.md) e [RELATORIO_FASE5.pdf](RELATORIO_FASE5.pdf), com roteiro em [ROTEIRO-VIDEO.md](docs/ROTEIRO-VIDEO.md). O PDF pode ser recriado com `python scripts/gerar-relatorio.py`. Evidências reais do deploy devem ser capturadas após a execução no laboratório e inseridas em `docs/evidencias/`; o repositório não apresenta screenshots simulados como execução real.
+O relatório final está em [RELATORIO_FASE5.md](RELATORIO_FASE5.md) e [RELATORIO_FASE5.pdf](RELATORIO_FASE5.pdf). O PDF pode ser recriado com `python scripts/gerar-relatorio.py`. Evidências reais do deploy devem ser capturadas após a execução no laboratório e inseridas em `docs/evidencias/`; o repositório não apresenta screenshots simulados como execução real.
 
 Autor: Philipe de Oliveira Marchezini — RM 369453.

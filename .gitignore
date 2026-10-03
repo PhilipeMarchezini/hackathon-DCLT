@@ -17,3 +17,7 @@ tfplan
 gitops/secrets.yaml
 dist/
 bin/
+
+# roteiros internos (mantidos apenas localmente)
+docs/ROTEIRO-VIDEO.md
+docs/GUIA-EXECUCAO-VALIDACAO.md

@@ -116,4 +116,3 @@ Como próximos passos de produção ficam domínio/TLS, WAF, Pod Identity/IRSA, 
 - `docs/ITSM-AIOPS.md`
 - `docs/NEW-RELIC-AIOPS.md`
 - `docs/RASTREABILIDADE.md`
-- `docs/ROTEIRO-VIDEO.md`
