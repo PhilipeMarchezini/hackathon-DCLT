@@ -10,7 +10,7 @@ spec:
       securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: volunteer-service
-          image: 713071293995.dkr.ecr.us-east-1.amazonaws.com/solidarytech/volunteer-service:sha-94b17e4
+          image: 713071293995.dkr.ecr.us-east-1.amazonaws.com/solidarytech/volunteer-service:sha-cad605f
           ports: [{ name: http, containerPort: 8083 }]
           envFrom: [{ configMapRef: { name: solidarytech-config } }]
           readinessProbe: { httpGet: { path: /health/ready, port: http }, periodSeconds: 10 }
