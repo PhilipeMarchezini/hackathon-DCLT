@@ -38,11 +38,29 @@ O custo aumentaria ao adotar nodes privados, NAT/endpoints VPC, RDS Multi-AZ, Re
 
 ## Desligamento do laboratório
 
-Antes de destruir, exporte evidências e confirme os backups que precisam ser preservados:
+Antes de destruir, exporte evidências e confirme os backups que precisam ser preservados.
+
+Remova o Load Balancer antes do `destroy`. O Service do ingress-nginx cria um Classic Load Balancer
+que o Terraform não gerencia, e as ENIs dele travam a deleção do internet gateway e da VPC por
+dezenas de minutos. Apagar as Applications do Argo CD não resolve, porque sem o finalizer
+`resources-finalizer.argocd.argoproj.io` os recursos permanecem; e o cloud controller não remove o
+balanceador sozinho com as permissões da LabRole.
 
 ```powershell
+$elb = aws elb describe-load-balancers --query 'LoadBalancerDescriptions[0].LoadBalancerName' --output text
+$vpc = aws elb describe-load-balancers --query 'LoadBalancerDescriptions[0].VPCId' --output text
+aws elb delete-load-balancer --load-balancer-name $elb
+
 terraform -chdir=terraform plan -destroy
 terraform -chdir=terraform destroy
+```
+
+Se o destroy parar em `aws_vpc ... Still destroying`, o culpado é o security group `k8s-elb-*` que
+sobrou do balanceador. Remova-o em outro terminal e a deleção prossegue:
+
+```powershell
+aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$vpc" "Name=group-name,Values=k8s-elb-*" --query 'SecurityGroups[].GroupId' --output text
+aws ec2 delete-security-group --group-id <id>
 ```
 
 O bucket de state possui proteção contra deleção acidental e pode exigir esvaziamento controlado depois que não houver mais necessidade acadêmica.
