@@ -10,5 +10,5 @@ FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/donation-service /donation-service
 EXPOSE 8082
 ENV PORT=8082 OTEL_SERVICE_NAME=donation-service
-USER nonroot:nonroot
+USER 65532:65532
 ENTRYPOINT ["/donation-service"]

@@ -15,9 +15,21 @@ resource "aws_eks_cluster" "this" {
 }
 
 resource "aws_eks_addon" "vpc_cni" {
-  cluster_name                = aws_eks_cluster.this.name
-  addon_name                  = "vpc-cni"
-  configuration_values        = jsonencode({ enableNetworkPolicy = "true" })
+  cluster_name = aws_eks_cluster.this.name
+  addon_name   = "vpc-cni"
+  # Sem prefix delegation, o limite de pods por node vem da quantidade de IPs
+  # das ENIs: um t3.medium para em 17 pods. A stack de observabilidade sozinha
+  # saturava os dois nodes com a CPU em 41% e a memória em 33%, impedindo o
+  # agendamento das aplicações e qualquer demonstração de HPA. Com delegação de
+  # prefixo o mesmo t3.medium suporta 110 pods, o que resolve o gargalo sem
+  # adicionar instâncias e sem aumentar o custo.
+  configuration_values = jsonencode({
+    enableNetworkPolicy = "true"
+    env = {
+      ENABLE_PREFIX_DELEGATION = "true"
+      WARM_PREFIX_TARGET       = "1"
+    }
+  })
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
 }
@@ -52,7 +64,7 @@ resource "aws_eks_node_group" "this" {
     version = aws_launch_template.workers.latest_version
   }
   scaling_config {
-    desired_size = 2
+    desired_size = 3
     min_size     = 1
     max_size     = 4
   }
