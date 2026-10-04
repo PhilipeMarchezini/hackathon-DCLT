@@ -124,3 +124,9 @@ variable "cluster_admin_principal_arns" {
   default     = []
   description = "Roles IAM com acesso administrativo ao EKS via access entry. No AWS Academy, informe a role da sessão (voclabs), pois o bootstrap do criador não cobre a sessão assumida."
 }
+
+variable "max_pods_per_node" {
+  type        = number
+  default     = 110
+  description = "Pods por node, aplicado via NodeConfig do nodeadm. Depende da delegação de prefixo habilitada no addon vpc-cni."
+}

@@ -45,4 +45,4 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata: { name: ngo-service }
-spec: { minAvailable: 1, selector: { matchLabels: { app: ngo-service } } }
+spec: { minAvailable: 1, unhealthyPodEvictionPolicy: AlwaysAllow, selector: { matchLabels: { app: ngo-service } } }

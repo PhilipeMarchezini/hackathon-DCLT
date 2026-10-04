@@ -27,6 +27,7 @@ module "eks" {
   node_instance_types          = var.node_instance_types
   resource_tags                = local.required_tags
   cluster_admin_principal_arns = var.cluster_admin_principal_arns
+  max_pods_per_node            = var.max_pods_per_node
 }
 
 module "data" {

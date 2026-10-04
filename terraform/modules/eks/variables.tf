@@ -12,3 +12,8 @@ variable "cluster_admin_principal_arns" {
   default     = []
   description = "ARNs de roles IAM que recebem AmazonEKSClusterAdminPolicy por access entry."
 }
+variable "max_pods_per_node" {
+  type        = number
+  default     = 110
+  description = "Limite de pods por node. Requer delegação de prefixo no VPC CNI; 110 é o valor que a calculadora da AWS indica para t3.medium com delegação ativa."
+}

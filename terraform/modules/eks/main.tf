@@ -38,6 +38,41 @@ resource "aws_launch_template" "workers" {
   name_prefix            = "${var.name}-workers-"
   update_default_version = true
 
+  # O hop limit padrão é 1, o que impede um pod de obter token IMDSv2: o
+  # volunteer-service falhava a readiness com "Unable to locate credentials" ao
+  # tentar alcançar o DynamoDB. O AWS Academy não permite IRSA, então as cargas
+  # dependem da LabRole entregue pelo IMDS e o limite precisa ser 2.
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
+  # Ligar a delegação de prefixo no CNI não basta: o EKS deriva --max-pods dos
+  # limites de ENI do tipo de instância no bootstrap do node e não refaz a conta
+  # sozinho, então um t3.medium continuava parando em 17 pods. Este NodeConfig
+  # declara o valor explicitamente. O AL2023 usa nodeadm, e um managed node group
+  # cujo launch template não fixa uma AMI mescla este bloco com o bootstrap que a
+  # própria AWS injeta.
+  user_data = base64encode(<<-MIME
+    MIME-Version: 1.0
+    Content-Type: multipart/mixed; boundary="//"
+
+    --//
+    Content-Type: application/node.eks.aws
+
+    ---
+    apiVersion: node.eks.aws/v1alpha1
+    kind: NodeConfig
+    spec:
+      kubelet:
+        config:
+          maxPods: ${var.max_pods_per_node}
+
+    --//--
+  MIME
+  )
+
   tag_specifications {
     resource_type = "instance"
     tags          = merge(var.resource_tags, { Name = "${var.name}-worker" })
