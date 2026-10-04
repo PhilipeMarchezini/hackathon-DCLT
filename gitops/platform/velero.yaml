@@ -11,6 +11,12 @@ spec:
     targetRevision: 10.1.3
     helm:
       values: |
+        # O hook upgrade-crds do chart roda docker.io/bitnamilegacy/kubectl:1.35,
+        # que não existe mais desde que a Bitnami retirou as tags públicas, e o
+        # Job ficava em ImagePullBackOff travando a sincronização. O hook só
+        # importa em upgrade de CRDs; numa instalação nova o Helm aplica os CRDs
+        # do diretório crds/ diretamente.
+        upgradeCRDs: false
         initContainers:
           - name: velero-plugin-for-aws
             image: velero/velero-plugin-for-aws:v1.12.2
