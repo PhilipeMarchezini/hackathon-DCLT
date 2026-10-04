@@ -28,12 +28,12 @@ Papéis: Incident Commander coordena; Tech Lead mitiga; Communications mantém s
 ## Configuração das integrações
 
 1. Criar conta New Relic gratuita e obter ingest license key; seguir o [runbook de ativação do AIOps](NEW-RELIC-AIOPS.md) e passar a chave para `bootstrap-secrets.ps1`.
-2. Criar serviço PagerDuty Free e copiar a integration key, ou usar somente Discord/GitHub.
-3. Criar webhook do canal Discord e um token GitHub com permissão mínima para issues/dispatch.
+2. Criar serviço PagerDuty Free com integração Events API v2 e copiar a integration key. É a camada de ITSM: abre o incidente e sustenta o on-call.
+3. Criar webhook do canal Discord, que é a camada de ChatOps, e um token GitHub com permissão de Contents para o `repository_dispatch` que aciona o self-healing. As três são camadas distintas e complementares, não alternativas entre si.
 4. Passar as chaves ao script; nenhuma delas deve ser commitada.
 5. Executar um alerta de teste e guardar screenshot/ID em `docs/evidencias/`.
 
-Sem chaves externas, Prometheus, Grafana e Loki continuam funcionais no cluster. O script usa valores inertes e sintaticamente válidos para que o provisionamento do Grafana não quebre; eles não enviam incidentes. Não foi incluído Datadog.
+Os defaults inertes do `bootstrap-secrets.ps1` existem apenas para que o provisionamento do Grafana não quebre caso uma chave falte: são sintaticamente válidos e não enviam incidentes. Um deploy que termine com esses valores tem Prometheus, Grafana e Loki funcionais, mas nenhuma notificação sai do cluster — confira os três parâmetros antes de rodar o bootstrap. Não foi incluído Datadog.
 
 ## Post-mortem mínimo
 
