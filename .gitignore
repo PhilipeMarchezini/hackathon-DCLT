@@ -12,7 +12,7 @@ coverage.xml
 *.tfstate.*
 terraform.tfvars
 terraform/backend.hcl
-tfplan
+tfplan*
 *.tfplan
 gitops/secrets.yaml
 dist/
