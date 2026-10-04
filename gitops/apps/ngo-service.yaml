@@ -10,7 +10,7 @@ spec:
       securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: ngo-service
-          image: 713071293995.dkr.ecr.us-east-1.amazonaws.com/solidarytech/ngo-service:sha-94b17e4
+          image: 713071293995.dkr.ecr.us-east-1.amazonaws.com/solidarytech/ngo-service:sha-cad605f
           ports: [{ name: http, containerPort: 8081 }]
           envFrom: [{ configMapRef: { name: solidarytech-config } }]
           env:
