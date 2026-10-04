@@ -10,7 +10,7 @@ spec:
       securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: donation-service
-          image: 713071293995.dkr.ecr.us-east-1.amazonaws.com/solidarytech/donation-service:bootstrap
+          image: 713071293995.dkr.ecr.us-east-1.amazonaws.com/solidarytech/donation-service:sha-046f5ec
           ports:
             - { name: http, containerPort: 8082 }
           envFrom: [{ configMapRef: { name: solidarytech-config } }]
