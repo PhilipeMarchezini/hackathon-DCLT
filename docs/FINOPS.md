@@ -19,7 +19,7 @@ Estimativa educacional para `us-east-1`, 730 h/mês, baixa carga e valores aprox
 | DynamoDB/SQS | on-demand, baixo volume; uma réplica Global Table | < 5 |
 | **Total indicativo** | laboratório ligado 24×7 | **≈ 225** |
 
-New Relic é opcional e deve permanecer no limite gratuito. Prometheus, Grafana e Loki executam dentro dos nodes já contabilizados. PagerDuty Free e Discord não adicionam custo no cenário proposto.
+New Relic opera no plano gratuito, cujo teto de 100 GB/mês de ingestão é suficiente para o volume da plataforma e mantém o custo de APM em zero. Prometheus, Grafana e Loki executam dentro dos nodes já contabilizados. PagerDuty Free e Discord não adicionam custo no cenário proposto.
 
 ## Otimizações implementadas
 

@@ -1,6 +1,6 @@
 # Ativação do AIOps no New Relic Free
 
-O envio OTLP já está preparado no OpenTelemetry Collector, mas a ativação do AIOps depende de uma conta externa e de uma `ingest license key`; nenhuma credencial é versionada. Este runbook transforma a integração opcional em uma configuração reproduzível e gera as evidências exigidas pela entrega.
+O envio OTLP já está preparado no OpenTelemetry Collector, mas a ativação do AIOps depende de uma conta externa e de uma `ingest license key`; nenhuma credencial é versionada. Este runbook torna a ativação reproduzível e gera as evidências exigidas pela entrega.
 
 ## 1. Habilitar a ingestão
 

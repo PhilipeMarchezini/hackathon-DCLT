@@ -2,7 +2,7 @@
 
 Plataforma de impacto social da ONG SolidaryTech, consolidando as entregas das fases 1 a 4 e a solução de DevOps/SRE da fase 5. O projeto está pronto para desenvolvimento local e para provisionamento no AWS Academy com Terraform, EKS, Argo CD, observabilidade e continuidade de negócio.
 
-> Não há integração com Datadog. A observabilidade usa Prometheus, Grafana, Loki, OpenTelemetry e, opcionalmente, uma conta gratuita do New Relic via OTLP.
+> O APM da entrega é o New Relic Free, alimentado por OTLP a partir do OpenTelemetry Collector. Datadog não é usado, pois a escolha entre as duas ferramentas é exclusiva. A stack de métricas e logs é Prometheus, Grafana e Loki.
 
 ## Arquitetura entregue
 
@@ -13,7 +13,7 @@ Plataforma de impacto social da ONG SolidaryTech, consolidando as entregas das f
 - AWS: VPC, EKS, ECR, RDS, ElastiCache, DynamoDB, SQS/DLQ, backup cross-region e S3 para Velero.
 - GitOps com Argo CD, probes, HPA, PDB, NetworkPolicies e migrações idempotentes.
 - CI/CD no GitHub Actions com testes, auditoria de dependências, scan de imagens e atualização declarativa do GitOps.
-- SRE: métricas, logs e traces, SLO/error budget, alertas e integrações opcionais PagerDuty Free, Discord e GitHub Issues.
+- SRE: métricas, logs e traces, SLO/error budget e alertas roteados para PagerDuty Free (ITSM), Discord (ChatOps) e GitHub Issues, com as chaves injetadas pelo `bootstrap-secrets.ps1`.
 
 Detalhes: [arquitetura](docs/ARQUITETURA.md), [SRE](docs/SRE.md), [PCN/DR](docs/PCN-DR.md), [FinOps](docs/FINOPS.md), [ITSM/AIOps](docs/ITSM-AIOPS.md), [runbook New Relic AIOps](docs/NEW-RELIC-AIOPS.md) e [rastreabilidade](docs/RASTREABILIDADE.md).
 
@@ -65,7 +65,7 @@ terraform -chdir=terraform apply tfplan
 
 aws eks update-kubeconfig --region us-east-1 --name solidarytech-production-eks
 .\scripts\render-gitops.ps1
-.\scripts\bootstrap-secrets.ps1 -DatabasePassword $env:TF_VAR_database_password -NewRelicLicenseKey '<opcional>'
+.\scripts\bootstrap-secrets.ps1 -DatabasePassword $env:TF_VAR_database_password -NewRelicLicenseKey '<ingest-license-key>'
 ```
 
 O script também renderiza todos os `repoURL`, o endpoint `repository_dispatch` e as URLs ECR para a região informada pelo Terraform. Em um failover, configure a variável de repositório `AWS_REGION` do GitHub para a região DR e execute `render-gitops.ps1` antes de sincronizar o Argo CD.

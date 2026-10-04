@@ -16,7 +16,7 @@ flowchart LR
   NGO & DON & VOL --> OTEL[OpenTelemetry Collector]
   OTEL --> PROM[Prometheus / Grafana]
   OTEL --> LOKI[Loki]
-  OTEL -. OTLP opcional .-> NR[New Relic Free]
+  OTEL -- OTLP --> NR[New Relic Free APM]
 ```
 
 O EKS está distribuído em duas sub-redes públicas para evitar NAT Gateway no laboratório. RDS e Redis ficam em sub-redes privadas, sem exposição pública. Essa concessão reduz custo no AWS Academy; em produção real, nodes devem ficar em sub-redes privadas com endpoints VPC ou NAT de alta disponibilidade.

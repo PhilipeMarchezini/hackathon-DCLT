@@ -21,7 +21,7 @@ O `donation-service` foi definido como jornada crítica. Ele recebeu cache Redis
 
 A implantação foi desenhada para as limitações do AWS Academy: reaproveita `LabRole`, mantém custos reduzidos e evita NAT Gateway. As concessões são registradas para não confundir um laboratório funcional com o desenho recomendado de produção.
 
-Não foi utilizado Datadog, pois não há assinatura ativa. A stack escolhida é Prometheus, Grafana, Loki e OpenTelemetry, com exportação opcional via OTLP para New Relic Free.
+A ferramenta de APM escolhida é o New Relic Free. A decisão entre Datadog e New Relic é exclusiva e pesou o custo zero da conta educacional e a disponibilidade do Applied Intelligence no plano gratuito, que atende ao requisito de AIOps. A stack de métricas e logs é Prometheus, Grafana e Loki, e o OpenTelemetry Collector roteia traces e métricas para o New Relic via OTLP.
 
 ## 2. Evolução e rastreabilidade
 
