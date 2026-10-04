@@ -81,6 +81,16 @@ kubectl port-forward -n argocd svc/argocd-server 8443:443
 kubectl port-forward -n observability svc/kube-prometheus-stack-grafana 3000:80
 ```
 
+## Demonstrar escalabilidade
+
+Os três serviços têm `HorizontalPodAutoscaler` por CPU (alvo de 70%). Para gerar carga e evidenciar o escalonamento:
+
+```powershell
+.\scripts\gerar-carga.ps1 -BaseUrl http://<dns-do-load-balancer> -Service donation -WatchHpa
+```
+
+O script dispara requisições concorrentes com payloads válidos, imprime vazão, distribuição de status e latência p50/p95/p99, e registra `kubectl get hpa` antes, durante e depois. Use `-Service all` para alternar entre os três caminhos do Ingress, ou aponte `-BaseUrl` para `http://localhost:8082` e similares no ambiente local. O `scaleDown` tem janela de estabilização de 300 s, então as réplicas recuam alguns minutos após o fim da carga.
+
 ## API
 
 | Serviço | Porta | Operações |
@@ -99,7 +109,7 @@ kubectl port-forward -n observability svc/kube-prometheus-stack-grafana 3000:80
 ├── volunteer-service/       Serviço Flask/DynamoDB e testes
 ├── terraform/               IaC modular e bootstrap do state
 ├── gitops/                  Argo CD, workloads, plataforma e observabilidade
-├── scripts/                 Inicialização local e bootstrap seguro
+├── scripts/                 Inicialização local, bootstrap seguro e geração de carga
 ├── docs/                    Runbooks, evidências e relatório
 └── docker-compose.yml       Ambiente local completo
 ```

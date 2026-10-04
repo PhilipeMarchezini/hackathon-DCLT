@@ -15,5 +15,6 @@ Checklist sugerido:
 9. `09-velero-backup.png` — backup Completed.
 10. `10-dr-restore.png` — restore validado e tempo medido.
 11. `11-cost-explorer.png` — custos/tags.
+12. `12-hpa-scaling.png` — `kubectl get hpa` e réplicas crescendo sob carga.
 
 Para cada imagem, registrar data/hora, comando/cenário, resultado esperado e resultado obtido no relatório.
