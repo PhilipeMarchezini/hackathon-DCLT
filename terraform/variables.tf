@@ -107,8 +107,20 @@ variable "existing_velero_bucket_name" {
     error_message = "Informe existing_velero_bucket_name quando create_dr_protection_resources=false."
   }
 }
+variable "existing_velero_bucket_region" {
+  type        = string
+  default     = ""
+  description = "Região do bucket informado em existing_velero_bucket_name. Vazio assume aws_region. Necessário quando o bucket foi criado fora do Terraform em outra região, como no contorno do SCP do AWS Academy que bloqueia aws_s3_bucket."
+}
+
 variable "gitops_repository" {
   type        = string
   default     = "https://github.com/PhilipeMarchezini/hackathon-DCLT.git"
   description = "Repositório observado pelo ArgoCD."
+}
+
+variable "cluster_admin_principal_arns" {
+  type        = list(string)
+  default     = []
+  description = "Roles IAM com acesso administrativo ao EKS via access entry. No AWS Academy, informe a role da sessão (voclabs), pois o bootstrap do criador não cobre a sessão assumida."
 }

@@ -59,3 +59,22 @@ resource "aws_eks_node_group" "this" {
   update_config { max_unavailable = 1 }
   depends_on = [aws_eks_cluster.this, aws_eks_addon.vpc_cni]
 }
+
+# O bootstrap do criador do cluster registra a role da sessão, mas no AWS Academy
+# quem aplica é uma sessão assumida de voclabs, que fica sem access entry e recebe
+# 401 no servidor da API. Declarar as entradas aqui mantém o acesso reproduzível
+# em um novo apply ou na região de DR, em vez de depender de um comando manual.
+resource "aws_eks_access_entry" "admin" {
+  for_each      = toset(var.cluster_admin_principal_arns)
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = each.value
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "admin" {
+  for_each      = aws_eks_access_entry.admin
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = each.value.principal_arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  access_scope { type = "cluster" }
+}

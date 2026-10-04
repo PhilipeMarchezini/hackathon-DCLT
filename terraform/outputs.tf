@@ -8,4 +8,6 @@ output "ecr_repositories" { value = module.registries.repository_urls }
 output "velero_bucket" { value = local.velero_bucket_name }
 output "gitops_repository" { value = var.gitops_repository }
 output "aws_region" { value = var.aws_region }
-output "velero_bucket_region" { value = var.create_dr_protection_resources ? var.dr_region : var.aws_region }
+output "velero_bucket_region" {
+  value = var.create_dr_protection_resources ? var.dr_region : coalesce(trimspace(var.existing_velero_bucket_region), var.aws_region)
+}

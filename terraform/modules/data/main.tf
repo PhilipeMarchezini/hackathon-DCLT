@@ -51,7 +51,7 @@ resource "aws_db_instance" "postgres" {
   }
   identifier                   = "${var.name}-${each.key}"
   engine                       = "postgres"
-  engine_version               = "16.4"
+  engine_version               = "16.15"
   instance_class               = "db.t3.micro"
   allocated_storage            = 20
   max_allocated_storage        = 50
@@ -100,6 +100,10 @@ resource "aws_dynamodb_table" "volunteers" {
   name         = "SolidaryTechVolunteers"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "volunteer_id"
+  # Uma Global Table exige streams; sem declarar aqui, o Terraform tenta
+  # desabilitá-los a cada apply e a AWS recusa a alteração na réplica.
+  stream_enabled   = true
+  stream_view_type = "NEW_AND_OLD_IMAGES"
   attribute {
     name = "volunteer_id"
     type = "S"

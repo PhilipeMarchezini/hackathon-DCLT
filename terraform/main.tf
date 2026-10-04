@@ -19,13 +19,14 @@ module "network" {
 }
 
 module "eks" {
-  source              = "./modules/eks"
-  name                = local.name
-  cluster_version     = var.eks_version
-  subnet_ids          = module.network.public_subnet_ids
-  lab_role_name       = var.lab_role_name
-  node_instance_types = var.node_instance_types
-  resource_tags       = local.required_tags
+  source                       = "./modules/eks"
+  name                         = local.name
+  cluster_version              = var.eks_version
+  subnet_ids                   = module.network.public_subnet_ids
+  lab_role_name                = var.lab_role_name
+  node_instance_types          = var.node_instance_types
+  resource_tags                = local.required_tags
+  cluster_admin_principal_arns = var.cluster_admin_principal_arns
 }
 
 module "data" {

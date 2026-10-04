@@ -7,3 +7,8 @@ variable "resource_tags" {
   type    = map(string)
   default = {}
 }
+variable "cluster_admin_principal_arns" {
+  type        = list(string)
+  default     = []
+  description = "ARNs de roles IAM que recebem AmazonEKSClusterAdminPolicy por access entry."
+}

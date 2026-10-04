@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string]$DatabasePassword,
     [string]$DatabaseUsername = "solidary",
@@ -10,9 +10,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$rds = terraform -chdir=$TerraformDirectory output -json rds_endpoints | ConvertFrom-Json
-$redis = (terraform -chdir=$TerraformDirectory output -raw redis_endpoint).Trim()
-$queue = (terraform -chdir=$TerraformDirectory output -raw sqs_queue_url).Trim()
+$rds = terraform "-chdir=$TerraformDirectory" output -json rds_endpoints | ConvertFrom-Json
+$redis = (terraform "-chdir=$TerraformDirectory" output -raw redis_endpoint).Trim()
+$queue = (terraform "-chdir=$TerraformDirectory" output -raw sqs_queue_url).Trim()
 $encodedUser = [Uri]::EscapeDataString($DatabaseUsername)
 $encodedPassword = [Uri]::EscapeDataString($DatabasePassword)
 

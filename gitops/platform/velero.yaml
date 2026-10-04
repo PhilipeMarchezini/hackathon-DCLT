@@ -20,7 +20,7 @@ spec:
           backupStorageLocation:
             - name: default
               provider: aws
-              bucket: REPLACE_VELERO_BUCKET
+              bucket: solidarytech-production-velero-713071293995
               config: { region: us-west-2 }
           volumeSnapshotLocation: []
         schedules:
