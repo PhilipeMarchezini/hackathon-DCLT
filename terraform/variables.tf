@@ -122,7 +122,7 @@ variable "gitops_repository" {
 variable "cluster_admin_principal_arns" {
   type        = list(string)
   default     = []
-  description = "Roles IAM com acesso administrativo ao EKS via access entry. No AWS Academy, informe a role da sessão (voclabs), pois o bootstrap do criador não cobre a sessão assumida."
+  description = "Roles IAM com acesso administrativo ao EKS via access entry. Vazio usa automaticamente a role da sessão que está aplicando."
 }
 
 variable "max_pods_per_node" {

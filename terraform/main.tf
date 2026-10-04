@@ -10,6 +10,23 @@ locals {
 
 data "aws_caller_identity" "current" {}
 
+locals {
+  # Quem aplica no AWS Academy chega como sessão assumida de voclabs, e o
+  # bootstrap do criador do cluster não registra essa identidade. Sem uma access
+  # entry para ela, o kubectl e o provider helm recebem 401 e o cluster nasce
+  # inacessível. Derivar a role da própria sessão evita depender de alguém
+  # lembrar de preencher cluster_admin_principal_arns a cada novo laboratório.
+  # arn:aws:sts::<conta>:assumed-role/<role>/<sessão> vira arn:aws:iam::<conta>:role/<role>
+  caller_is_assumed_role = can(regex("^arn:aws:sts::[0-9]+:assumed-role/", data.aws_caller_identity.current.arn))
+  caller_role_arn = local.caller_is_assumed_role ? format(
+    "arn:aws:iam::%s:role/%s",
+    data.aws_caller_identity.current.account_id,
+    split("/", data.aws_caller_identity.current.arn)[1]
+  ) : data.aws_caller_identity.current.arn
+
+  cluster_admins = length(var.cluster_admin_principal_arns) > 0 ? var.cluster_admin_principal_arns : [local.caller_role_arn]
+}
+
 module "network" {
   source             = "./modules/network"
   name               = local.name
@@ -26,7 +43,7 @@ module "eks" {
   lab_role_name                = var.lab_role_name
   node_instance_types          = var.node_instance_types
   resource_tags                = local.required_tags
-  cluster_admin_principal_arns = var.cluster_admin_principal_arns
+  cluster_admin_principal_arns = local.cluster_admins
   max_pods_per_node            = var.max_pods_per_node
 }
 
