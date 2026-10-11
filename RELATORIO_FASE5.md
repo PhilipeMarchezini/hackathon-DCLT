@@ -10,8 +10,9 @@
 
 **Repositório de entrega:** `https://github.com/PhilipeMarchezini/hackathon-DCLT`
 
-**Vídeo:** `INSERIR_LINK_NÃO_LISTADO_APÓS_A_GRAVAÇÃO`
-**Data:** setembro de 2026
+**Vídeo:** https://youtu.be/Vxywcx1LQpY
+
+**Data:** outubro de 2026
 
 ## 1. Resumo executivo
 
@@ -50,6 +51,16 @@ Cada serviço possui workflow independente e reutiliza um pipeline central. Pull
 As migrações SQL são Jobs PreSync idempotentes. A plataforma instala NGINX Ingress, Metrics Server, Velero e a stack de observabilidade antes das aplicações. Sync waves reduzem condições de corrida com CRDs. Os três serviços têm HPA por CPU com alvo de 70%: Donation escala de 2 a 10 réplicas e NGO e Volunteer de 2 a 6, enquanto o PDB conserva ao menos uma disponível em cada um. O script `scripts/gerar-carga.ps1` gera a carga que evidencia o escalonamento.
 
 Um workflow agendado audita pods anormais, solicita refresh do Argo CD e abre GitHub Issue. Ele complementa os mecanismos nativos; não executa correções destrutivas nem substitui investigação humana.
+
+### 4.1 O portão de segurança em operação
+
+O bloqueio por vulnerabilidade não é decorativo, e há duas ocorrências reais registradas no histórico do repositório.
+
+Na primeira, a introdução do `govulncheck` reprovou o `donation-service` com **30 vulnerabilidades alcançáveis** em seis módulos e na biblioteca padrão do Go. A correção exigiu elevar a linguagem de 1.25.7 para 1.27.1, migrar `jackc/pgx` de v4 para v5 — a série v4 está em fim de vida e suas falhas não tinham correção publicada — e atualizar OpenTelemetry, gRPC, `x/net` e `x/text`.
+
+Na segunda, durante a reconstrução do ambiente para a gravação, o mesmo portão reprovou o serviço por **vulnerabilidades divulgadas naquele mesmo dia**: `GO-2026-6617` em `golang.org/x/net`, corrigida na v0.60.0, e onze achados alcançáveis na biblioteca padrão, corrigidos no go1.27.2. Nenhuma linha de código havia mudado desde o build anterior.
+
+A distinção importa: o `govulncheck` faz análise de alcançabilidade e reporta apenas vulnerabilidades em funções que o código efetivamente chama, o que elimina o ruído típico das ferramentas de composição e torna o bloqueio defensável.
 
 ## 5. SRE e observabilidade
 
@@ -93,6 +104,16 @@ O runbook em `docs/PCN-DR.md` define declaração de desastre, restauração PIT
 Tags de projeto, ambiente, centro de custo e Terraform permitem showback. ECR aplica lifecycle; DynamoDB/SQS são on-demand; recursos de compute possuem requests/limits e sizing pequeno. A estimativa educacional para o laboratório ligado 24×7 é aproximadamente USD 225/mês, sujeita à calculadora vigente, tráfego e impostos.
 
 A principal economia do laboratório é não usar NAT Gateway. Isso é adequado à demonstração, mas a produção real exigiria segurança e alta disponibilidade maiores: RDS Multi-AZ, Redis com failover, nodes privados e persistência durável da observabilidade. O teardown após a banca evita consumo desnecessário.
+
+### 8.1 Rightsizing: densidade de pods por node
+
+O caso mais concreto de otimização surgiu durante o provisionamento. Os nodes saturaram e nenhuma aplicação era mais agendada, com o escalonador reportando `Too many pods`. A leitura das métricas, porém, mostrava **CPU em 41% e memória em 33%** — havia capacidade ociosa e, ainda assim, não havia espaço.
+
+O gargalo não era de computação e sim de rede. O VPC CNI atribui a cada pod um endereço IP real da VPC, e o número de endereços disponíveis decorre da quantidade de interfaces que o tipo de instância suporta. Um `t3.medium` para em **17 pods**, independentemente de CPU e memória.
+
+A reação intuitiva seria adicionar instâncias, ou seja, pagar por capacidade que já estava ociosa. A correção adequada foi habilitar a delegação de prefixo no VPC CNI, que faz a interface receber blocos de dezesseis endereços em vez de um por vez, e declarar `maxPods` explicitamente no `NodeConfig` do launch template — passo necessário porque o EKS calcula o limite no bootstrap do node e não refaz a conta ao ligar a delegação.
+
+O mesmo `t3.medium` passou a comportar **110 pods**: seis vezes e meia a densidade, sem instância adicional e sem aumento de custo. O ganho também viabilizou a demonstração de HPA, que antes não tinha onde alocar réplicas novas.
 
 ## 9. Execução e evidências
 
