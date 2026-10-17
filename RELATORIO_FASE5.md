@@ -119,7 +119,55 @@ O mesmo `t3.medium` passou a comportar **110 pods**: seis vezes e meia a densida
 
 O projeto pode ser validado localmente com `docker compose up --build -d`. O README descreve o bootstrap Terraform, a configuração do `kubectl`, o preenchimento seguro de secrets e a primeira publicação de imagens.
 
-As evidências reais devem ser anexadas em `docs/evidencias/` depois da execução no AWS Academy: CI verde, nodes/pods, Argo CD, smoke tests, SQS/outbox, dashboard SLO, logs/traces, incidente, backup/restore e Cost Explorer. Esta versão não inventa screenshots nem declara um deploy cloud que não tenha sido executado com credenciais do aluno.
+A plataforma foi provisionada e validada na conta AWS Academy `713071293995`, com o cluster `solidarytech-production-eks` em operação e carga gerada por `scripts/gerar-carga.ps1`. As capturas abaixo vêm desse ambiente real; nenhuma é simulada. O conjunto completo, com quinze imagens, está em `docs/evidencias/`.
+
+### 9.1 Fundação: CI/CD, GitOps e Kubernetes
+
+![Pipeline do donation-service: testes, lint, SAST, SCA, scan de imagem, publicação no ECR e atualização do GitOps.](docs/evidencias/01-actions-ci.png)
+
+![Dez Applications do Argo CD sincronizadas e saudáveis, geradas a partir da raiz pelo padrão app-of-apps.](docs/evidencias/03-argocd.png)
+
+![Três nodes em v1.35.8-eks com 110 pods por node, mais HPA e PodDisruptionBudget dos três serviços.](docs/evidencias/02-eks-nodes.png)
+
+### 9.2 Jornada funcional e transactional outbox
+
+![As três APIs no Ingress: criação de ONG, doação aprovada, voluntário no DynamoDB, consulta pelo índice secundário, regras negativas 409 e 400, e a fila SQS alimentada pelo outbox.](docs/evidencias/04-api-smoke.png)
+
+### 9.3 SRE e observabilidade
+
+![Dashboard de SRE: disponibilidade, error budget, latência sob 500 ms, tráfego por status, percentis, backlog do outbox e logs do Loki em tempo real.](docs/evidencias/06-grafana-slo.png)
+
+![Os três serviços no New Relic, recebidos por OTLP, com tempo de resposta, throughput e taxa de erro.](docs/evidencias/07a-newrelic-services.png)
+
+![Rastreamento distribuído: 9,1 mil traces agrupados por operação, com o p95 de cada rota medido no servidor.](docs/evidencias/07b-newrelic-traces.png)
+
+![Horizontal Pod Autoscaler reagindo à carga: NGO a 108% do alvo com seis réplicas, Volunteer a 92% com quatro.](docs/evidencias/12-hpa-scaling.png)
+
+### 9.4 Resposta a incidentes, de ponta a ponta
+
+A Fase 4 pede a prova real: provocar uma falha e demonstrar a resposta. Um gatilho `BEFORE INSERT` na tabela `donations` passou a lançar exceção. A escolha isola o caminho crítico — a readiness probe executa `SELECT 1` e continuou passando, os pods permaneceram no balanceamento, as leituras seguiram em 200 e os outros serviços não foram afetados. Apenas o `POST /donations` passou a retornar 500, que é exatamente o SLI de disponibilidade protegido pelo SLO.
+
+A taxa de erro subiu de 0% para 53% em cinco minutos, a regra entrou em disparo após a janela de dois minutos, a notificação alcançou o ponto de contato e o canal de ChatOps, o webhook acionou a automação de recuperação e o serviço foi reiniciado. A remoção do gatilho devolveu a taxa de erro a zero e resolveu o alerta.
+
+![Alerta crítico ativo e entregue ao ponto de contato `solidarytech-oncall`, que alimenta ITSM, ChatOps e a automação simultaneamente.](docs/evidencias/08a-alerta-firing.png)
+
+![A notificação publicada no canal de alertas pelo ChatOps.](docs/evidencias/08b-discord.png)
+
+![A automação acionada por `repository_dispatch`, reiniciando o deployment e abrindo a issue de incidente.](docs/evidencias/08c-self-healing.png)
+
+### 9.5 FinOps e continuidade
+
+![Tags obrigatórias declaradas no Terraform e os recursos efetivamente rastreados por `Project=SolidaryTech`.](docs/evidencias/11-finops-tags.png)
+
+![Backup do Velero concluído com 724 itens e zero erros, gravado em bucket na região de recuperação.](docs/evidencias/09-velero-backup.png)
+
+### 9.6 O portão de segurança reprovando um build
+
+![O pipeline bloqueado pelo `govulncheck` em vulnerabilidades divulgadas no mesmo dia, antes de qualquer publicação.](docs/evidencias/13-govulncheck.png)
+
+### 9.7 Limitação declarada
+
+O restore cronometrado do Velero não foi executado. O backup está comprovado em 9.5, mas a medição do tempo de recuperação ficou pendente, e o relatório não a apresenta como feita. O `README.md` de `docs/evidencias/` registra essa lacuna.
 
 ## 10. Conclusão
 

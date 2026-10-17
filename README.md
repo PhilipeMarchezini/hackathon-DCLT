@@ -116,6 +116,6 @@ O script dispara requisições concorrentes com payloads válidos, imprime vazã
 
 ## Entrega acadêmica
 
-O relatório final está em [RELATORIO_FASE5.md](RELATORIO_FASE5.md) e [RELATORIO_FASE5.pdf](RELATORIO_FASE5.pdf). O PDF pode ser recriado com `python scripts/gerar-relatorio.py`. Evidências reais do deploy devem ser capturadas após a execução no laboratório e inseridas em `docs/evidencias/`; o repositório não apresenta screenshots simulados como execução real.
+O relatório final está em [RELATORIO_FASE5.md](RELATORIO_FASE5.md) e [RELATORIO_FASE5.pdf](RELATORIO_FASE5.pdf). O PDF pode ser recriado com `python scripts/gerar-relatorio.py`. As evidências do deploy real estão em `docs/evidencias/` e embutidas no PDF; nenhuma captura é simulada.
 
 Autor: Philipe de Oliveira Marchezini — RM 369453.

@@ -1,5 +1,5 @@
 from pathlib import Path
-from re import sub
+from re import match, sub
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
@@ -7,7 +7,8 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.platypus import PageBreak, Paragraph, Preformatted, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus import Image, PageBreak, Paragraph, Preformatted, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +31,10 @@ styles.add(ParagraphStyle(name="H3ST", parent=styles["Heading3"], fontName="Helv
 styles.add(ParagraphStyle(name="BodyST", parent=styles["BodyText"], fontName="Helvetica", fontSize=9.5, leading=13.5, textColor=colors.HexColor("#172033"), spaceAfter=5))
 styles.add(ParagraphStyle(name="BulletST", parent=styles["BodyST"], leftIndent=12, firstLineIndent=-7, bulletIndent=3))
 styles.add(ParagraphStyle(name="TableST", parent=styles["BodyST"], fontSize=7.7, leading=9.5, spaceAfter=0))
+styles.add(ParagraphStyle(name="LegendaST", parent=styles["BodyST"], fontSize=8, leading=10, textColor=colors.HexColor("#667788"), alignment=TA_CENTER, spaceBefore=3, spaceAfter=9))
+
+# Largura util da pagina: A4 tem 210 mm e as margens deste documento somam 37 mm.
+LARGURA_UTIL = 173 * mm
 
 lines = SOURCE.read_text(encoding="utf-8").splitlines()
 story = []
@@ -69,6 +74,22 @@ while i < len(lines):
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ]))
         story.extend([table, Spacer(1, 5)])
+        continue
+    figura = match(r"^!\[(?P<legenda>[^\]]*)\]\((?P<caminho>[^)]+)\)\s*$", line)
+    if figura:
+        # O enunciado exige evidencias visuais no relatorio, entao as capturas
+        # entram no PDF e nao apenas na pasta do repositorio. A altura segue a
+        # proporcao original da imagem para nao distorcer a captura.
+        origem = ROOT / figura.group("caminho")
+        if origem.exists():
+            largura_px, altura_px = ImageReader(str(origem)).getSize()
+            story.append(Image(str(origem), width=LARGURA_UTIL, height=LARGURA_UTIL * altura_px / largura_px))
+            legenda = figura.group("legenda")
+            if legenda:
+                story.append(Paragraph(markup(legenda), styles["LegendaST"]))
+        else:
+            story.append(Paragraph(markup(f"*imagem ausente: {figura.group('caminho')}*"), styles["BodyST"]))
+        i += 1
         continue
     if line.startswith("# "):
         if story:
