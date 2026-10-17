@@ -75,7 +75,7 @@ A distinção importa: o `govulncheck` faz análise de alcançabilidade e report
 
 Prometheus calcula taxa de requisições, erro, p95 e backlog do outbox. Grafana reúne tráfego, disponibilidade, error budget, latência, CPU e logs. Os alertas cobrem erro acima de 1%, p95 acima de 500 ms, outbox represado e queima acelerada do budget.
 
-Logs JSON seguem para Loki. Traces e telemetria OTLP podem ser encaminhados ao New Relic Free com uma license key fornecida fora do Git; o procedimento concreto de baseline, correlação e workflow está em `docs/NEW-RELIC-AIOPS.md`. PagerDuty Free, Discord e GitHub podem receber incidentes; sem essas chaves, a observabilidade interna continua operacional.
+Logs JSON seguem para Loki. Traces e métricas são exportados por OTLP ao New Relic Free, onde os três serviços aparecem com Service Map e rastreamento distribuído; a license key é fornecida fora do Git, e o procedimento de baseline, correlação e workflow está em `docs/NEW-RELIC-AIOPS.md`. Os alertas alcançam PagerDuty, Discord e GitHub a partir de um único ponto de contato, conforme demonstrado na seção 9.4.
 
 ### 5.2 Resiliência aplicada
 
@@ -87,7 +87,11 @@ Probes separam vida de prontidão. Kubernetes reinicia containers e remove pods 
 
 Alertas são classificados em P1/P2/P3 com tempos de reconhecimento e cadência de comunicação. Um P1 de Donation deve ser reconhecido em até 10 minutos, ter mitigação alvo em até 60 minutos e gerar post-mortem em até dois dias úteis.
 
-O ciclo adotado é: detectar → enriquecer → registrar incidente → triar/correlacionar → mitigar → validar SLI → post-mortem. MTTD e MTTR são derivados dos timestamps de sintoma, alerta e restauração. O GitHub Issue fornece trilha auditável; PagerDuty/Discord aceleram mobilização quando configurados.
+MTTD e MTTR são derivados dos timestamps de sintoma, alerta e restauração. O GitHub Issue fornece trilha auditável e PagerDuty e Discord aceleram a mobilização. O desenho abaixo descreve o ciclo completo, da observabilidade ao post-mortem.
+
+![Ciclo de vida de um incidente: observabilidade, detecção, enriquecimento, registro, triagem, mitigação, validação do SLI e post-mortem.](docs/evidencias/14-ciclo-incidente.png)
+
+A seção 9.4 demonstra esse ciclo executado de ponta a ponta sobre uma falha provocada, com as capturas de cada etapa.
 
 ## 7. PCN e Disaster Recovery
 
